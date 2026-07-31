@@ -104,8 +104,8 @@ function carregarDocx() {
 
 <script>
   // ── Supabase config ──
-  const SUPABASE_URL = "https://oblincnudkzvurmdehbo.supabase.co";
-  const SUPABASE_ANON_KEY = "sb_publishable_utaXGC8-hPIJDXWJrtRmjQ_9hwX1w7z";
+  const SUPABASE_URL = "https://hapjuixvwsotcbmpsmyx.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_4SC7Z5-Ht_RhVAvRaFxyBw_NOE6KaFK";
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 </script>
 
@@ -154,7 +154,7 @@ const fsdb = {
   async addUser(u) {
     const { data, error } = await sb.from('rdr_users').insert({
       nome: u.nome,
-      usuario: u.usuario,
+      usuario: u.usuario.toLowerCase(),
       senha: u.senha,
       role: u.role,
       ativo: true
