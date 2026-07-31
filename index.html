@@ -210,8 +210,7 @@ const fsdb = {
   async saveRecord(rec) {
     if (rec.id && rec._exists) {
       const { _exists, ...payload } = rec;
-      const { error } = await sb.from('rdr_records').upsert({
-        id: rec.id,
+      const { error } = await sb.from('rdr_records').update({
         data_ocorrido: rec.dataOcorrido,
         hora: rec.hora,
         autor_id: rec.autorId,
@@ -227,7 +226,7 @@ const fsdb = {
         prazo: rec.prazo,
         fotos: rec.fotos,
         saved_at: new Date().toISOString()
-      });
+      }).eq('id', rec.id);
       if (error) throw error;
       return rec;
     } else {
@@ -423,8 +422,7 @@ const aprDb = {
   try {
     const { data: s } = await sb.from('rdr_users').select('id').eq('role', 'gestor').limit(1);
     if (!s || s.length === 0) {
-      await sb.from('rdr_users').upsert({
-        id: 'seed-gestor-padrao',
+      await sb.from('rdr_users').insert({
         nome: 'Gestor',
         usuario: 'gestor',
         senha: '1234',
