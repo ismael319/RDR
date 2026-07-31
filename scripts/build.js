@@ -1,4 +1,30 @@
-﻿<!DOCTYPE html>
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+
+const SCRIPTS = [
+  'src/loaders.js',
+  'src/supabase-config.js',
+  'src/logos.js',
+  'src/constants.js',
+  'src/mappers.js',
+  'src/db.js',
+  'src/apr-db.js',
+  'src/pdf.js',
+  'src/pdf-dashboard.js',
+  'src/docx-apr.js',
+  'src/icons.js',
+  'src/ui.js',
+  'src/screens/Login.js',
+  'src/screens/Home.js',
+  'src/screens/CampoHub.js',
+  'src/screens/Registros.js',
+  'src/screens/Dashboard.js',
+  'src/screens/Gestor.js',
+  'src/screens/Form.js',
+  'src/screens/Apr.js',
+  'src/screens/App.js',
+];
+
+const head = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8"/>
@@ -14,31 +40,30 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="preload" as="style" onload="this.rel='stylesheet'"/>
   <noscript><link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet"/></noscript>
-  <link rel="stylesheet" href="/src/style.css"/>
+  <style>
+`;
+
+const body = `  </style>
 </head>
 <body>
 <div id="root"><div class="loading-screen" id="loading-screen"><div class="loading-spinner"></div><div class="loading-text">CARREGANDO</div></div></div>
 
-<script src="/src/loaders.js" defer></script>
-<script src="/src/supabase-config.js" defer></script>
-<script src="/src/logos.js" defer></script>
-<script src="/src/constants.js" defer></script>
-<script src="/src/mappers.js" defer></script>
-<script src="/src/db.js" defer></script>
-<script src="/src/apr-db.js" defer></script>
-<script src="/src/pdf.js" defer></script>
-<script src="/src/pdf-dashboard.js" defer></script>
-<script src="/src/docx-apr.js" defer></script>
-<script src="/src/icons.js" defer></script>
-<script src="/src/ui.js" defer></script>
-<script src="/src/screens/Login.js" defer></script>
-<script src="/src/screens/Home.js" defer></script>
-<script src="/src/screens/CampoHub.js" defer></script>
-<script src="/src/screens/Registros.js" defer></script>
-<script src="/src/screens/Dashboard.js" defer></script>
-<script src="/src/screens/Gestor.js" defer></script>
-<script src="/src/screens/Form.js" defer></script>
-<script src="/src/screens/Apr.js" defer></script>
-<script src="/src/screens/App.js" defer></script>
+<script>
+`;
+
+const tail = `</script>
 </body>
 </html>
+`;
+
+let js = '';
+for (const file of SCRIPTS) {
+  const content = readFileSync(file, 'utf8').replace(/\n$/, '');
+  js += content + '\n';
+}
+
+const css = readFileSync('src/style.css', 'utf8').replace(/\n$/, '');
+
+mkdirSync('dist', { recursive: true });
+writeFileSync('dist/index.html', head + css + body + js + tail, 'utf8');
+console.log('Build gerado: dist/index.html (' + Math.round((head.length + css.length + body.length + js.length + tail.length) / 1024) + ' KB)');
