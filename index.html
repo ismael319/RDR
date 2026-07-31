@@ -5373,6 +5373,14 @@ function FormScreen({
   }
   async function handleSave() {
     if (user.role !== 'gestor' && editData) return;
+    if (!form.dataOcorrido || !form.dataOcorrido.trim()) {
+      alert('Informe a data do ocorrido para salvar.');
+      return;
+    }
+    if (!form.descricao || !form.descricao.trim()) {
+      alert('Informe a descrição do desvio para salvar.');
+      return;
+    }
     setSalvando(true);
     try {
       const rec = {
