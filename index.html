@@ -595,13 +595,15 @@ async function gerarPDF(form, autorNome) {
     tx("FOTOS", margin + 2, y + 5.5, true, [100, 120, 140]);
     y += 11;
     for (let i = 0; i < form.fotos.length; i++) {
+      const c = i % 2,
+        r = Math.floor(i / 2);
       try {
-        doc.addImage(form.fotos[i].url, "JPEG", margin + i * 88, y, 80, 60);
+        doc.addImage(form.fotos[i].url, "JPEG", margin + c * 88, y + r * 66, 80, 60);
         doc.setDrawColor(200, 200, 200);
-        doc.rect(margin + i * 88, y, 80, 60);
+        doc.rect(margin + c * 88, y + r * 66, 80, 60);
       } catch (e) {}
     }
-    y += 70;
+    y += Math.ceil(form.fotos.length / 2) * 66 + 4;
   }
   if (y + 50 > 277) {
     doc.addPage();
@@ -5358,8 +5360,8 @@ function FormScreen({
   }
   function handleFotos(e) {
     const files = Array.from(e.target.files);
-    if ((form.fotos || []).length >= 2) return;
-    const toAdd = files.slice(0, 2 - (form.fotos || []).length);
+    if ((form.fotos || []).length >= 4) return;
+    const toAdd = files.slice(0, 4 - (form.fotos || []).length);
     Promise.all(toAdd.map(file => comprimirImagem(file))).then(imgs => setForm(f => ({
       ...f,
       fotos: [...(f.fotos || []), ...imgs]
@@ -5570,7 +5572,7 @@ function FormScreen({
     readOnly: readOnly
   })))), /*#__PURE__*/React.createElement("div", {
     style: card
-  }, /*#__PURE__*/React.createElement(SectionLabel, null, "Fotos (", (form.fotos || []).length, "/2)"), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(SectionLabel, null, "Fotos (", (form.fotos || []).length, "/4)"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 10,
@@ -5611,7 +5613,7 @@ function FormScreen({
       alignItems: "center",
       justifyContent: "center"
     }
-  }, /*#__PURE__*/React.createElement(TrashIcon, null)))), !readOnly && (form.fotos || []).length < 2 && /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement(TrashIcon, null)))), !readOnly && (form.fotos || []).length < 4 && /*#__PURE__*/React.createElement("button", {
     onClick: () => fileRef.current.click(),
     style: {
       width: 110,
