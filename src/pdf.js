@@ -37,6 +37,26 @@ async function gerarPDF(form, autorNome) {
     const [yr, m, dd] = d.split("-");
     return `${dd}/${m}/${yr}`;
   };
+  const PAG_MAX_Y = 277;
+  const boxTexto = (lines, yIni) => {
+    let yy = yIni;
+    let restantes = [...lines];
+    while (restantes.length) {
+      const cabem = Math.max(1, Math.floor((PAG_MAX_Y - yy - 4) / 4));
+      const bloco = restantes.slice(0, cabem);
+      restantes = restantes.slice(cabem);
+      const h = Math.max(bloco.length * 4 + 4, 14);
+      doc.setDrawColor(220, 220, 220);
+      doc.rect(margin + 2, yy, col - 4, h);
+      bloco.forEach((l, i) => tx(l, margin + 2, yy + 4 + i * 4));
+      yy += h + 8;
+      if (restantes.length) {
+        doc.addPage();
+        yy = 20;
+      }
+    }
+    return yy;
+  };
   rc(margin, y - 6, col, 22, [0, 0, 0]);
   tx("RDR — Registro de Desvio e Reconhecimento", margin + 4, y + 1, true, [255, 255, 255]);
   tx("Segurança do Trabalho", margin + 4, y + 7, false, [200, 200, 200]);
@@ -105,11 +125,7 @@ async function gerarPDF(form, autorNome) {
     } else dL = dL ? dL + " " + w : w;
   });
   if (dL) dW.push(dL);
-  const dH = Math.max(dW.length * 4 + 4, 14);
-  doc.setDrawColor(220, 220, 220);
-  doc.rect(margin + 2, y, col - 4, dH);
-  dW.forEach((l, i) => tx(l, margin + 2, y + 4 + i * 4));
-  y += dH + 8;
+  y = boxTexto(dW, y);
   rc(margin, y, col, 8, [240, 244, 248]);
   tx("SUGESTAO DE CORRECAO", margin + 2, y + 5.5, true, [100, 120, 140]);
   y += 11;
@@ -128,11 +144,7 @@ async function gerarPDF(form, autorNome) {
     } else sL = sL ? sL + " " + w : w;
   });
   if (sL) sW.push(sL);
-  const sH = Math.max(sW.length * 4 + 4, 14);
-  doc.setDrawColor(220, 220, 220);
-  doc.rect(margin + 2, y, col - 4, sH);
-  sW.forEach((l, i) => tx(l, margin + 2, y + 4 + i * 4));
-  y += sH + 8;
+  y = boxTexto(sW, y);
   if (form.fotos && form.fotos.length > 0) {
     rc(margin, y, col, 8, [240, 244, 248]);
     tx("FOTOS", margin + 2, y + 5.5, true, [100, 120, 140]);

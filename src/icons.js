@@ -300,6 +300,21 @@ const FilterIcon = ({
   fillOpacity: "0.12",
   fill: "currentColor"
 }));
+const SearchIcon = ({
+  size = 15
+}) => /*#__PURE__*/React.createElement("svg", Object.assign({
+  width: size,
+  height: size
+}, ICO, {
+  strokeWidth: "2.2",
+  viewBox: "0 0 24 24"
+}), /*#__PURE__*/React.createElement("circle", {
+  cx: "11",
+  cy: "11",
+  r: "7"
+}), /*#__PURE__*/React.createElement("polyline", {
+  points: "21 21 16.5 16.5"
+}));
 const EditIcon = ({
   size = 14
 }) => /*#__PURE__*/React.createElement("svg", Object.assign({
@@ -406,9 +421,11 @@ const ArrowDownIcon = ({
 }), /*#__PURE__*/React.createElement("polyline", {
   points: "6 13 12 19 18 13"
 }));
-const AlertIcon = () => /*#__PURE__*/React.createElement("svg", Object.assign({
-  width: "20",
-  height: "20"
+const AlertIcon = ({
+  size = 20
+}) => /*#__PURE__*/React.createElement("svg", Object.assign({
+  width: size,
+  height: size
 }, ICO, {
   strokeWidth: "2",
   viewBox: "0 0 24 24"

@@ -64,6 +64,7 @@ function RegistrosScreen({
   const [filtroData, setFiltroData] = useState(periodo || (filtroInicial.mesExato ? 'mesExato' : filtroInicial.data || 'todas'));
   const [filtroConcluido, setFiltroConcluido] = useState(filtroInicial.concluido || 'todos');
   const [filtroMes, setFiltroMes] = useState(filtroInicial.mesExato || '');
+  const [busca, setBusca] = useState('');
   const [showFiltros, setShowFiltros] = useState(!modoSimples && Object.keys(filtroInicial).length > 0);
   const hojeKey = new Date().toLocaleDateString('en-CA');
   const ontemKey = new Date(Date.now() - 86400000).toLocaleDateString('en-CA');
@@ -94,9 +95,14 @@ function RegistrosScreen({
     if (filtroData === 'mesExato' && filtroMes && (!r.dataOcorrido || r.dataOcorrido.slice(0, 7) !== filtroMes)) return false;
     if (filtroConcluido === 'SIM' && r.concluido !== 'SIM') return false;
     if (filtroConcluido === 'NÃO' && r.concluido !== 'NÃO') return false;
+    if (busca.trim()) {
+      const t = busca.trim().toLowerCase();
+      const alvo = [r.descricao, r.local, r.nomeColaborador, r.autorNome, r.responsavelSetor, r.responsavelRegistro, r.hora, (r.categorias || []).join(' ')].join(' ').toLowerCase();
+      if (!alvo.includes(t)) return false;
+    }
     return true;
-  }), [registros, filtroTecnico, filtroCategoria, filtroData, filtroMes, filtroConcluido, hojeKey, ontemKey, semanaKey, mesKey]);
-  const filtrosAtivos = [filtroTecnico !== 'todos', filtroCategoria !== 'todas', filtroData !== 'todas', filtroConcluido !== 'todos', filtroMes !== ''].filter(Boolean).length;
+  }), [registros, filtroTecnico, filtroCategoria, filtroData, filtroMes, filtroConcluido, busca, hojeKey, ontemKey, semanaKey, mesKey]);
+  const filtrosAtivos = [filtroTecnico !== 'todos', filtroCategoria !== 'todas', filtroData !== 'todas', filtroConcluido !== 'todos', filtroMes !== '', busca.trim() !== ''].filter(Boolean).length;
   const grouped = useMemo(() => filtrados.reduce((acc, r) => {
     const k = r.dataOcorrido || "sem-data";
     if (!acc[k]) acc[k] = [];
@@ -125,6 +131,22 @@ function RegistrosScreen({
       month: "long",
       year: "numeric"
     });
+  }
+  function statusDoRegistro(r) {
+    if (r.concluido === "SIM") return { tipo: "concluido", dias: 0, atrasado: false };
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    let dias = 0;
+    if (r.dataOcorrido) {
+      const ocorrido = new Date(r.dataOcorrido + "T12:00:00");
+      dias = Math.max(0, Math.floor((hoje - ocorrido) / (1000 * 60 * 60 * 24)));
+    }
+    let atrasado = dias > 7;
+    if (r.prazo) {
+      const prazo = new Date(r.prazo + "T23:59:59");
+      if (prazo < hoje) atrasado = true;
+    }
+    return { tipo: "pendente", dias, atrasado };
   }
   const opsDatas = [{
     id: 'todas',
@@ -222,7 +244,57 @@ function RegistrosScreen({
         justifyContent: "center"
       }
     }, filtrosAtivos))
-  }), showFiltros && !modoSimples && /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "12px 16px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "relative",
+      display: "flex",
+      alignItems: "center"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      position: "absolute",
+      left: 12,
+      color: "rgba(245,166,35,0.55)",
+      display: "flex",
+      pointerEvents: "none"
+    }
+  }, /*#__PURE__*/React.createElement(SearchIcon, null)), /*#__PURE__*/React.createElement("input", {
+    value: busca,
+    onChange: e => setBusca(e.target.value),
+    placeholder: "Buscar por descrição, local, colaborador, TST...",
+    style: {
+      width: "100%",
+      background: "#111111",
+      border: "1px solid rgba(245,166,35,0.2)",
+      borderRadius: 10,
+      padding: "10px 36px 10px 36px",
+      color: "#e8dcc8",
+      fontSize: 13,
+      outline: "none"
+    }
+  }), busca && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setBusca(''),
+    style: {
+      position: "absolute",
+      right: 8,
+      background: "rgba(192,57,43,0.15)",
+      border: "1px solid rgba(192,57,43,0.3)",
+      color: "#e74c3c",
+      borderRadius: 6,
+      width: 24,
+      height: 24,
+      cursor: "pointer",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center"
+    }
+  }, /*#__PURE__*/React.createElement(XIcon, {
+    size: 11
+  })))), showFiltros && !modoSimples && /*#__PURE__*/React.createElement("div", {
     style: {
       background: "rgba(0,0,0,0.8)",
       borderBottom: "1px solid rgba(245,166,35,0.15)",
@@ -272,6 +344,7 @@ function RegistrosScreen({
       setFiltroCategoria('todas');
       setFiltroData('todas');
       setFiltroMes('');
+      setBusca('');
     },
     style: {
       background: "transparent",
@@ -402,7 +475,7 @@ function RegistrosScreen({
         }
       }, totalMes));
     }))));
-  }), mesAtivoFiltro && /*#__PURE__*/React.createElement("div", {
+  }), (mesAtivoFiltro || busca.trim()) && /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 4
     }
@@ -422,7 +495,7 @@ function RegistrosScreen({
       letterSpacing: 2,
       fontSize: 13
     }
-  }, "NENHUM REGISTRO NESTE M\xCAS")), days.map(day => /*#__PURE__*/React.createElement("div", {
+  }, busca.trim() ? "NENHUM REGISTRO ENCONTRADO" : "NENHUM REGISTRO NESTE M\xCAS")), days.map(day => /*#__PURE__*/React.createElement("div", {
     key: day,
     style: {
       marginBottom: 12
@@ -542,7 +615,78 @@ function RegistrosScreen({
       fontSize: 10,
       color: "rgba(255,255,255,0.4)"
     }
-  }, "+", r.categorias.length - 3)), r.local && /*#__PURE__*/React.createElement("div", {
+  }, "+", r.categorias.length - 3)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 6,
+      marginBottom: 6
+    }
+  }, (() => {
+    const st = statusDoRegistro(r);
+    if (st.tipo === "concluido") return /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 10,
+        background: "rgba(39,174,96,0.15)",
+        color: "#27ae60",
+        border: "1px solid rgba(39,174,96,0.3)",
+        borderRadius: 10,
+        padding: "2px 8px",
+        fontFamily: "'Oswald',sans-serif",
+        letterSpacing: 1,
+        display: "flex",
+        alignItems: "center",
+        gap: 4
+      }
+    }, /*#__PURE__*/React.createElement(CheckIcon, {
+      size: 10
+    }), "CONCLU\xCDDO");
+    return [/*#__PURE__*/React.createElement("span", {
+      key: "pend",
+      style: {
+        fontSize: 10,
+        background: "rgba(245,166,35,0.12)",
+        color: "#f5c518",
+        border: "1px solid rgba(245,166,35,0.3)",
+        borderRadius: 10,
+        padding: "2px 8px",
+        fontFamily: "'Oswald',sans-serif",
+        letterSpacing: 1,
+        display: "flex",
+        alignItems: "center",
+        gap: 4
+      }
+    }, "PENDENTE"), st.dias > 0 && /*#__PURE__*/React.createElement("span", {
+      key: "dias",
+      style: {
+        fontSize: 10,
+        background: "rgba(52,152,219,0.15)",
+        color: "#3498db",
+        border: "1px solid rgba(52,152,219,0.3)",
+        borderRadius: 10,
+        padding: "2px 8px",
+        fontFamily: "'Oswald',sans-serif",
+        letterSpacing: 0.5
+      }
+    }, st.dias, " ", st.dias === 1 ? "dia" : "dias", " em aberto"), st.atrasado && /*#__PURE__*/React.createElement("span", {
+      key: "atraso",
+      style: {
+        fontSize: 10,
+        background: "rgba(231,76,60,0.15)",
+        color: "#e74c3c",
+        border: "1px solid rgba(231,76,60,0.35)",
+        borderRadius: 10,
+        padding: "2px 8px",
+        fontFamily: "'Oswald',sans-serif",
+        letterSpacing: 1,
+        display: "flex",
+        alignItems: "center",
+        gap: 4
+      }
+    }, /*#__PURE__*/React.createElement(AlertIcon, {
+      size: 10
+    }), "ATRASADO")];
+  })()), r.local && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       color: "rgba(255,255,255,0.5)",

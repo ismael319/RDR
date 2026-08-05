@@ -397,7 +397,8 @@ async function gerarDocxAPR(montagem) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `1234.docx`;
+    const nomeArquivo = String(montagem.numero || 'sem-numero').replace(/[^a-zA-Z0-9._-]/g, '_') || 'sem-numero';
+    a.download = `${nomeArquivo}.docx`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

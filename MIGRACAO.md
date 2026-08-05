@@ -113,12 +113,12 @@ Objetivo: tirar o base64 do banco.
 
 ## Fase 5 — Correção de bugs conhecidos
 
-- [ ] **DOCX `1234.docx`** — usar `montagem.numero` no `a.download` de
-  `gerarDocxAPR` (`index.html:1288`).
-- [ ] **PDF do formulário** — chamar `await carregarJsPDF()` no início de
-  `gerarPDF`, como o dashboard já faz (`index.html:670`).
-- [ ] **Overflow no PDF do RDR** — quebrar página também durante a descrição,
-  não só após as fotos (`index.html:608`).
+- [x] **DOCX `1234.docx`** — usar `montagem.numero` no `a.download` de
+  `gerarDocxAPR` (agora em `src/docx-apr.js`).
+- [x] **PDF do formulário** — `gerarPDF` já chama `await carregarJsPDF()` no
+  início (`src/pdf.js`).
+- [x] **Overflow no PDF do RDR** — quebra de página durante descrição e
+  sugestão de correção via helper `boxTexto` (`src/pdf.js`).
 
 ---
 
