@@ -12,6 +12,7 @@ const SCRIPTS = [
   'src/pdf.js',
   'src/pdf-dashboard.js',
   'src/docx-apr.js',
+  'src/docx-cert.js',
   'src/icons.js',
   'src/ui.js',
   'src/screens/Login.js',
@@ -22,6 +23,7 @@ const SCRIPTS = [
   'src/screens/Gestor.js',
   'src/screens/Form.js',
   'src/screens/Apr.js',
+  'src/screens/Certificados.js',
   'src/offline.js',
   'src/screens/App.js',
 ];

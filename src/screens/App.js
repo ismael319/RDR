@@ -48,7 +48,8 @@ function App() {
     onCampo: () => setScreen("campo"),
     onDashboard: () => setScreen("dashboard"),
     onLogout: handleLogout,
-    onVerTodos: () => setScreen("registros")
+    onVerTodos: () => setScreen("registros"),
+    onCertificados: () => setScreen("certificados")
   });
   if (screen === "campo" && user.role === 'gestor') tela = /*#__PURE__*/React.createElement(CampoHubScreen, {
     user: user,
@@ -94,6 +95,10 @@ function App() {
     onBack: () => setScreen(backAlvo)
   });
   if (screen === "apr" && user.role === 'gestor') tela = /*#__PURE__*/React.createElement(AprScreen, {
+    user: user,
+    onBack: () => setScreen("home")
+  });
+  if (screen === "certificados" && user.role === 'gestor') tela = /*#__PURE__*/React.createElement(CertificadosScreen, {
     user: user,
     onBack: () => setScreen("home")
   });

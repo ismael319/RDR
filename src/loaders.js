@@ -2,7 +2,8 @@
 var _rdrLoaders = {
   excelJS: null,
   docx: null,
-  chartJS: null
+  chartJS: null,
+  jszip: null
 };
 function carregarExcelJS() {
   if (_rdrLoaders.excelJS) return _rdrLoaders.excelJS;
@@ -39,4 +40,16 @@ function carregarChartJS() {
     document.head.appendChild(s);
   });
   return _rdrLoaders.chartJS;
+}
+function carregarJSZip() {
+  if (_rdrLoaders.jszip) return _rdrLoaders.jszip;
+  if (window.JSZip) return Promise.resolve();
+  _rdrLoaders.jszip = new Promise(function(resolve, reject) {
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js';
+    s.onload = resolve;
+    s.onerror = function() { _rdrLoaders.jszip = null; reject(new Error('Falha ao carregar JSZip')); };
+    document.head.appendChild(s);
+  });
+  return _rdrLoaders.jszip;
 }

@@ -8,7 +8,8 @@ function HomeScreen({
   onCampo,
   onDashboard,
   onLogout,
-  onVerTodos
+  onVerTodos,
+  onCertificados
 }) {
   const [stats, setStats] = useState({
     hoje: 0,
@@ -171,6 +172,14 @@ function HomeScreen({
     }),
     color: "#ffffff",
     onClick: onApr
+  }), /*#__PURE__*/React.createElement(FolderTile, {
+    label: "Certificados",
+    sub: "Emiss\xE3o .docx",
+    icon: /*#__PURE__*/React.createElement(DocumentIcon, {
+      size: 26
+    }),
+    color: "#27ae60",
+    onClick: onCertificados
   })) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "g3",
     style: {
