@@ -14,7 +14,7 @@ Sistema de **Registro de Desvios e Reconhecimentos** (RDR) de segurança do trab
 
 - **Login por papel** — `gestor`, `gestorobra`, `tecnico` (TST), `engcivil`, `engplan`, `encarregado`, `adm`.
 - **Registro de desvios (RDR)** — data/hora, local, 9 categorias, descrição, sugestão de correção, prazo, responsáveis e até 4 fotos (comprimidas no navegador).
-- **Dashboard de indicadores** — totais, taxa de conclusão, desvios por categoria, por TST e evolução mensal; exportação em PDF e Excel (5 abas: Resumo, Detalhamento, Pendentes, Por Técnico, Por Categoria).
+- **Dashboard de indicadores** — seletor de período (mês, trimestre, ano, custom, todo) com comparativo vs. período anterior, filtros por TST/categoria/status, indicadores de pendência e atraso (dias em aberto), reconhecimentos separados, gráficos interativos (Chart.js) de categorias, TST, evolução e locais; exportação em PDF e Excel (5 abas: Resumo, Detalhamento, Pendentes, Por Técnico, Por Categoria).
 - **Registros com filtros e busca** — filtros por data, categoria, TST e status, além de busca por texto (descrição, local, colaborador, TST) e indicadores visuais de pendência, dias em aberto e atraso.
 - **APR — Análise Preliminar de Riscos** — biblioteca de atividades com fases (riscos, consequências, medidas individuais/coletivas), histórico com desfazer, importação de JSON e geração de DOCX (A4 paisagem, com header/footer e tabela de equipe).
 - **Sincronização em tempo real** via Realtime do Supabase.

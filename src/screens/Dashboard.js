@@ -1,14 +1,115 @@
 // ── DASHBOARD ──
+function StatCard({
+  label,
+  val,
+  cor,
+  icon,
+  onClick,
+  delta
+}) {
+  return /*#__PURE__*/React.createElement("button", {
+    className: "folder-tile-fx",
+    onClick: onClick,
+    style: {
+      "--glow": cor,
+      background: `linear-gradient(135deg,${cor}18,${cor}08)`,
+      border: `1px solid ${cor}35`,
+      borderRadius: 14,
+      padding: "16px 14px",
+      cursor: "pointer",
+      textAlign: "left",
+      outline: "none",
+      position: "relative",
+      overflow: "hidden",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "flex-start"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      top: 12,
+      right: 12,
+      color: cor,
+      opacity: 0.4
+    }
+  }, icon), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 34,
+      fontWeight: 700,
+      fontFamily: "'Oswald',sans-serif",
+      color: cor,
+      lineHeight: 1
+    }
+  }, val), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: "rgba(232,220,200,0.45)",
+      letterSpacing: 1.5,
+      fontFamily: "'Oswald',sans-serif",
+      textTransform: "uppercase",
+      marginTop: 6
+    }
+  }, label), delta === null || delta === undefined ? /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: "rgba(255,255,255,0.2)",
+      marginTop: 4
+    }
+  }, "—") : /*#__PURE__*/React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 3,
+      fontSize: 11,
+      fontWeight: 700,
+      fontFamily: "'Oswald',sans-serif",
+      color: delta > 0 ? "#27ae60" : delta < 0 ? "#e74c3c" : "rgba(255,255,255,0.4)",
+      marginTop: 4
+    }
+  }, delta > 0 ? /*#__PURE__*/React.createElement(ArrowUpIcon, {
+    size: 10
+  }) : delta < 0 ? /*#__PURE__*/React.createElement(ArrowDownIcon, {
+    size: 10
+  }) : null, delta > 0 ? `+${delta}%` : `${delta}%`, " vs ant."), onClick && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: cor,
+      marginTop: 8,
+      fontFamily: "'Oswald',sans-serif",
+      letterSpacing: 1,
+      opacity: 0.75,
+      display: "flex",
+      alignItems: "center",
+      gap: 4
+    }
+  }, "VER ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12
+    }
+  }, "\u2192")));
+}
 function DashboardScreen({
   onBack,
   onVerRegistros
 }) {
   const [registros, setRegistros] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [chartReady, setChartReady] = useState(false);
+  const [chartErr, setChartErr] = useState(false);
+  const [periodo, setPeriodo] = useState('mes');
+  const [customInicio, setCustomInicio] = useState('');
+  const [customFim, setCustomFim] = useState('');
+  const [filtroTecnico, setFiltroTecnico] = useState('todos');
+  const [filtroCategoria, setFiltroCategoria] = useState('todas');
+  const [filtroStatus, setFiltroStatus] = useState('todos');
   const catRef = useRef(null);
   const tecRef = useRef(null);
   const mesRef = useRef(null);
+  const locRef = useRef(null);
   const chartInstances = useRef({});
+  const hojeISO = () => new Date().toLocaleDateString('en-CA');
+  const CORES = ["#f5c518", "#27ae60", "#3498db", "#e74c3c", "#9b59b6", "#1abc9c", "#e67e22", "#2ecc71", "#2980b9", "#f39c12"];
   useEffect(() => {
     const unsub = fsdb.subscribeRecords(dados => {
       setRegistros(dados);
@@ -17,28 +118,532 @@ function DashboardScreen({
     return () => unsub();
   }, []);
   useEffect(() => {
-    // Gráficos temporariamente desativados (Chart.js removido para diagnóstico)
-  }, [registros, loading]);
-  async function exportarExcel() {
+    carregarChartJS().then(() => setChartReady(true)).catch(() => setChartErr(true));
+  }, []);
+  function limitesPeriodo() {
+    const hoje = new Date();
+    const k = d => d.toLocaleDateString('en-CA');
+    switch (periodo) {
+      case 'mes': {
+        const ini = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+        return { inicio: k(ini), fim: k(hoje) };
+      }
+      case 'trimestre': {
+        const t = Math.floor(hoje.getMonth() / 3);
+        const ini = new Date(hoje.getFullYear(), t * 3, 1);
+        const fim = new Date(hoje.getFullYear(), t * 3 + 3, 0);
+        return { inicio: k(ini), fim: k(fim) };
+      }
+      case 'ano':
+        return { inicio: `${hoje.getFullYear()}-01-01`, fim: k(hoje) };
+      case 'custom':
+        return { inicio: customInicio, fim: customFim };
+      default:
+        return { inicio: null, fim: null };
+    }
+  }
+  const lim = limitesPeriodo();
+  function limiteAnterior() {
+    if (!lim.inicio || !lim.fim) return null;
+    const dIni = new Date(lim.inicio + 'T12:00:00');
+    const dFim = new Date(lim.fim + 'T12:00:00');
+    const dias = Math.round((dFim - dIni) / 86400000) + 1;
+    const fimPrev = new Date(dIni.getTime() - 86400000);
+    const iniPrev = new Date(fimPrev.getTime() - (dias - 1) * 86400000);
+    return { inicio: iniPrev.toLocaleDateString('en-CA'), fim: fimPrev.toLocaleDateString('en-CA') };
+  }
+  const limPrev = limiteAnterior();
+  function inPeriodo(r, l) {
+    if (!l || !l.inicio && !l.fim) return true;
+    if (!r.dataOcorrido) return false;
+    if (l.inicio && r.dataOcorrido < l.inicio) return false;
+    if (l.fim && r.dataOcorrido > l.fim) return false;
+    return true;
+  }
+  const visiveis = useMemo(() => registros.filter(r => {
+    if (!inPeriodo(r, lim)) return false;
+    if (filtroTecnico !== 'todos' && r.autorId !== filtroTecnico) return false;
+    if (filtroCategoria !== 'todas' && (!r.categorias || !r.categorias.includes(filtroCategoria))) return false;
+    if (filtroStatus === 'SIM' && r.concluido !== 'SIM') return false;
+    if (filtroStatus === 'NÃO' && r.concluido !== 'NÃO') return false;
+    return true;
+  }), [registros, lim.inicio, lim.fim, filtroTecnico, filtroCategoria, filtroStatus]);
+  const desvios = useMemo(() => visiveis.filter(r => !(r.categorias || []).includes('Reconhecimento')), [visiveis]);
+  const reconhecimentos = useMemo(() => visiveis.filter(r => (r.categorias || []).includes('Reconhecimento')), [visiveis]);
+  const stats = useMemo(() => {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const total = desvios.length;
+    const concluidos = desvios.filter(r => r.concluido === "SIM").length;
+    const pendentes = desvios.filter(r => r.concluido !== "SIM").length;
+    const atrasados = pendentes.filter(r => {
+      const occ = r.dataOcorrido ? new Date(r.dataOcorrido + 'T12:00:00') : null;
+      const dias = occ ? Math.max(0, Math.floor((hoje - occ) / 86400000)) : 0;
+      if (dias > 7) return true;
+      if (r.prazo && new Date(r.prazo + 'T23:59:59') < hoje) return true;
+      return false;
+    }).length;
+    const diasEmAberto = pendentes.length ? Math.round(pendentes.reduce((acc, r) => {
+      const occ = r.dataOcorrido ? new Date(r.dataOcorrido + 'T12:00:00') : hoje;
+      return acc + Math.max(0, Math.floor((hoje - occ) / 86400000));
+    }, 0) / pendentes.length) : 0;
+    const tx = total > 0 ? Math.round(concluidos / total * 100) : 0;
+    const categorias = {};
+    desvios.forEach(r => (r.categorias || []).forEach(c => {
+      if (c !== 'Reconhecimento') categorias[c] = (categorias[c] || 0) + 1;
+    }));
+    const catOrd = Object.entries(categorias).sort((a, b) => b[1] - a[1]);
+    const locais = {};
+    desvios.forEach(r => {
+      if (r.local && r.local.trim()) {
+        const l = r.local.trim();
+        locais[l] = (locais[l] || 0) + 1;
+      }
+    });
+    const locOrd = Object.entries(locais).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    return {
+      total,
+      concluidos,
+      pendentes,
+      atrasados,
+      diasEmAberto,
+      tx,
+      catOrd,
+      maxCat: catOrd[0]?.[1] || 1,
+      locOrd,
+      maxLoc: locOrd[0]?.[1] || 1,
+      recs: reconhecimentos.length
+    };
+  }, [desvios, reconhecimentos]);
+  const prevStats = useMemo(() => {
+    if (!limPrev) return null;
+    const prev = registros.filter(r => inPeriodo(r, limPrev) && !(r.categorias || []).includes('Reconhecimento'));
+    const total = prev.length;
+    const concluidos = prev.filter(r => r.concluido === "SIM").length;
+    const pendentes = prev.filter(r => r.concluido !== "SIM").length;
+    return {
+      total,
+      concluidos,
+      pendentes,
+      tx: total > 0 ? Math.round(concluidos / total * 100) : 0,
+      atrasados: null
+    };
+  }, [registros, limPrev && limPrev.inicio, limPrev && limPrev.fim]);
+  const deltaTotal = prevStats ? prevStats.total > 0 ? Math.round((stats.total - prevStats.total) / prevStats.total * 100) : null : null;
+  const deltaConcluidos = prevStats ? prevStats.concluidos > 0 ? Math.round((stats.concluidos - prevStats.concluidos) / prevStats.concluidos * 100) : null : null;
+  const deltaPendentes = prevStats ? prevStats.pendentes > 0 ? Math.round((stats.pendentes - prevStats.pendentes) / prevStats.pendentes * 100) : null : null;
+  const filtrosAtivos = [filtroTecnico !== 'todos', filtroCategoria !== 'todas', filtroStatus !== 'todos'].filter(Boolean).length;
+  function rotuloPeriodo() {
+    switch (periodo) {
+      case 'mes':
+        return 'Este mês';
+      case 'trimestre':
+        return 'Este trimestre';
+      case 'ano':
+        return 'Este ano';
+      case 'custom':
+        return customInicio && customFim ? `${customInicio.split('-').reverse().join('/')} a ${customFim.split('-').reverse().join('/')}` : 'Período custom';
+      default:
+        return 'Todo o período';
+    }
+  }
+  function getTecOrd(lista) {
+    const t = {};
+    lista.forEach(r => {
+      if (r.autorNome) t[r.autorNome] = (t[r.autorNome] || 0) + 1;
+    });
+    return Object.entries(t).sort((a, b) => b[1] - a[1]);
+  }
+  function fmtEvol(k) {
+    if (k.length === 7) {
+      const [yr, m] = k.split('-');
+      const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+      return `${meses[+m - 1]}/${yr.slice(2)}`;
+    }
+    const [yr, m, d] = k.split('-');
+    return `${d}/${m}`;
+  }
+  function getEvolucao(lista) {
+    const contagem = {};
+    const useDia = lim.inicio && lim.fim && (new Date(lim.fim + 'T12:00:00') - new Date(lim.inicio + 'T12:00:00')) <= 45 * 86400000;
+    lista.forEach(r => {
+      if (!r.dataOcorrido) return;
+      const k = useDia ? r.dataOcorrido : r.dataOcorrido.slice(0, 7);
+      contagem[k] = (contagem[k] || 0) + 1;
+    });
+    const chaves = Object.keys(contagem).sort();
+    const fin = chaves.filter(k => {
+      if (!lim.inicio) return true;
+      return k >= lim.inicio.slice(0, k.length) && (!lim.fim || k <= lim.fim.slice(0, k.length));
+    });
+    const sel = (fin.length > 14 ? fin.slice(-14) : fin);
+    return sel.map(k => ({
+      key: k,
+      label: fmtEvol(k),
+      total: contagem[k]
+    }));
+  }
+  const tecOrd = getTecOrd(desvios);
+  const evolucao = getEvolucao(desvios);
+  const tecnicos = useMemo(() => {
+    const m = {};
+    registros.forEach(r => {
+      if (r.autorNome) m[r.autorId] = r.autorNome;
+    });
+    return Object.entries(m).map(([id, nome]) => ({
+      id,
+      label: nome
+    }));
+  }, [registros]);
+  const opsPeriodo = [{
+    id: 'mes',
+    label: 'Este mês'
+  }, {
+    id: 'trimestre',
+    label: 'Trimestre'
+  }, {
+    id: 'ano',
+    label: 'Ano'
+  }, {
+    id: 'custom',
+    label: 'Custom'
+  }, {
+    id: 'todos',
+    label: 'Todo'
+  }];
+  const opsCats = [{
+    id: 'todas',
+    label: 'Todas'
+  }, ...CATEGORIAS.map(c => ({
+    id: c,
+    label: c
+  }))];
+  const opsTecs = [{
+    id: 'todos',
+    label: 'Todos'
+  }, ...tecnicos];
+  const opsStatus = [{
+    id: 'todos',
+    label: 'Todos'
+  }, {
+    id: 'SIM',
+    label: 'Concluídos'
+  }, {
+    id: 'NÃO',
+    label: 'Pendentes'
+  }];
+  function navComFiltros(extra) {
+    const base = {};
+    if (periodo === 'mes') base.data = 'mes';
+    if (periodo === 'custom' && customInicio && customFim && customInicio.slice(0, 7) === customFim.slice(0, 7)) {
+      base.data = 'mes';
+      base.mesExato = customInicio.slice(0, 7);
+    }
+    if (filtroTecnico !== 'todos') base.tecnico = filtroTecnico;
+    if (filtroCategoria !== 'todas') base.categoria = filtroCategoria;
+    return { ...base, ...extra };
+  }
+  function limparFiltros() {
+    setFiltroTecnico('todos');
+    setFiltroCategoria('todas');
+    setFiltroStatus('todos');
+  }
+  useEffect(() => {
+    if (!chartReady || chartErr || loading) return;
+    if (!catRef.current || !tecRef.current || !mesRef.current || !locRef.current) return;
+    Object.values(chartInstances.current).forEach(c => {
+      try {
+        c.destroy();
+      } catch (e) {}
+    });
+    chartInstances.current = {};
+    const C = window.Chart;
+    C.defaults.color = 'rgba(232,220,200,0.65)';
+    C.defaults.borderColor = 'rgba(255,255,255,0.08)';
+    const baseOpt = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          labels: {
+            boxWidth: 10,
+            font: {
+              size: 10
+            }
+          }
+        }
+      }
+    };
+    if (stats.catOrd.length) {
+      chartInstances.current.cat = new C(catRef.current, {
+        type: 'doughnut',
+        data: {
+          labels: stats.catOrd.map(([c]) => c),
+          datasets: [{
+            data: stats.catOrd.map(([, q]) => q),
+            backgroundColor: CORES,
+            borderWidth: 0,
+            hoverOffset: 4
+          }]
+        },
+        options: {
+          ...baseOpt,
+          cutout: '62%',
+          plugins: {
+            ...baseOpt.plugins,
+            legend: {
+              position: 'bottom',
+              labels: baseOpt.plugins.legend.labels
+            }
+          },
+          onClick: (e, els) => {
+            if (els.length) onVerRegistros(navComFiltros({
+              categoria: stats.catOrd[els[0].index][0]
+            }));
+          }
+        }
+      });
+    }
+    if (tecOrd.length) {
+      chartInstances.current.tec = new C(tecRef.current, {
+        type: 'bar',
+        data: {
+          labels: tecOrd.map(([n]) => n),
+          datasets: [{
+            label: 'Registros',
+            data: tecOrd.map(([, q]) => q),
+            backgroundColor: CORES,
+            borderRadius: 4
+          }]
+        },
+        options: {
+          ...baseOpt,
+          indexAxis: 'y',
+          scales: {
+            x: {
+              beginAtZero: true,
+              ticks: {
+                precision: 0
+              }
+            }
+          },
+          plugins: {
+            ...baseOpt.plugins,
+            legend: {
+              display: false
+            }
+          },
+          onClick: (e, els) => {
+            if (!els.length) return;
+            const nome = tecOrd[els[0].index][0];
+            const rec = desvios.find(r => r.autorNome === nome);
+            if (rec) onVerRegistros(navComFiltros({
+              tecnico: rec.autorId
+            }));
+          }
+        }
+      });
+    }
+    if (evolucao.length) {
+      chartInstances.current.mes = new C(mesRef.current, {
+        type: 'line',
+        data: {
+          labels: evolucao.map(b => b.label),
+          datasets: [{
+            label: 'Registros',
+            data: evolucao.map(b => b.total),
+            borderColor: '#f5a623',
+            backgroundColor: 'rgba(245,166,35,0.15)',
+            fill: true,
+            tension: 0.35,
+            pointBackgroundColor: '#f5a623',
+            pointRadius: 4
+          }]
+        },
+        options: {
+          ...baseOpt,
+          plugins: {
+            ...baseOpt.plugins,
+            legend: {
+              display: false
+            }
+          },
+          onClick: (e, els) => {
+            if (!els.length) return;
+            const b = evolucao[els[0].index];
+            const mesExato = b.key.length === 7 ? b.key : b.key.slice(0, 7);
+            onVerRegistros({
+              data: 'mes',
+              mesExato
+            });
+          }
+        }
+      });
+    }
+    if (stats.locOrd.length) {
+      chartInstances.current.loc = new C(locRef.current, {
+        type: 'bar',
+        data: {
+          labels: stats.locOrd.map(([l]) => l.length > 26 ? l.slice(0, 25) + '…' : l),
+          datasets: [{
+            label: 'Desvios',
+            data: stats.locOrd.map(([, q]) => q),
+            backgroundColor: CORES,
+            borderRadius: 4
+          }]
+        },
+        options: {
+          ...baseOpt,
+          indexAxis: 'y',
+          scales: {
+            x: {
+              beginAtZero: true,
+              ticks: {
+                precision: 0
+              }
+            }
+          },
+          plugins: {
+            ...baseOpt.plugins,
+            legend: {
+              display: false
+            }
+          },
+          onClick: (e, els) => {
+            if (!els.length) return;
+            onVerRegistros(navComFiltros({
+              busca: stats.locOrd[els[0].index][0]
+            }));
+          }
+        }
+      });
+    }
+  }, [chartReady, chartErr, loading, visiveis, stats]);
+  const sec = (title, hint) => /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "baseline",
+      justifyContent: "space-between",
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Oswald',sans-serif",
+      fontSize: 11,
+      letterSpacing: 3,
+      color: "#f5c518",
+      textTransform: "uppercase",
+      borderLeft: "2px solid #f5a623",
+      paddingLeft: 8
+    }
+  }, title), hint && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: "rgba(255,255,255,0.3)",
+      fontStyle: "italic"
+    }
+  }, hint));
+  function barrasCSS(entries, max, corBase) {
+    return entries.map(([nome, qtd], i) => {
+      const pct = Math.round(qtd / (max || 1) * 100);
+      const cor = CORES[i % CORES.length];
+      return /*#__PURE__*/React.createElement("div", {
+        key: nome,
+        style: {
+          marginBottom: 8
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          marginBottom: 3
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          width: 8,
+          height: 8,
+          borderRadius: "50%",
+          background: cor,
+          flexShrink: 0
+        }
+      }), /*#__PURE__*/React.createElement("div", {
+        style: {
+          flex: 1,
+          fontFamily: "'Oswald',sans-serif",
+          fontSize: 12,
+          color: "#ffffff",
+          letterSpacing: 1,
+          textAlign: "left"
+        }
+      }, nome), /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontFamily: "'Oswald',sans-serif",
+          fontWeight: 700,
+          fontSize: 13,
+          color: cor
+        }
+      }, qtd)), /*#__PURE__*/React.createElement("div", {
+        style: {
+          background: "#111111",
+          borderRadius: 4,
+          height: 5,
+          overflow: "hidden",
+          marginLeft: 18
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          width: `${pct}%`,
+          height: "100%",
+          background: `linear-gradient(90deg,${cor},${cor}88)`,
+          borderRadius: 4
+        }
+      })));
+    });
+  }
+  function canvasSec(ref, h, mensagem) {
+    return /*#__PURE__*/React.createElement("div", {
+      style: {
+        position: "relative",
+        height: h
+      }
+    }, chartErr && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        color: "rgba(255,255,255,0.3)",
+        fontStyle: "italic",
+        padding: 10,
+        textAlign: "center"
+      }
+    }, mensagem || "Carregando gráficos..."), /*#__PURE__*/React.createElement("canvas", {
+      ref: ref,
+      style: {
+        width: "100%",
+        height: "100%"
+      }
+    }));
+  }
+  async function exportarExcel(dados, ctx) {
     const hojeKey = new Date().toLocaleDateString('en-CA');
     const mesAtual = hojeKey.slice(0, 7);
-    const totalR = registros.length;
-    const concluidosR = registros.filter(r => r.concluido === "SIM").length;
-    const pendentesR = registros.filter(r => r.concluido === "NÃO").length;
-    const doMesR = registros.filter(r => r.dataOcorrido?.slice(0, 7) === mesAtual).length;
+    const totalR = dados.length;
+    const concluidosR = dados.filter(r => r.concluido === "SIM").length;
+    const pendentesR = dados.filter(r => r.concluido === "NÃO").length;
+    const semStatusR = dados.filter(r => r.concluido !== "SIM" && r.concluido !== "NÃO").length;
+    const doMesR = dados.filter(r => r.dataOcorrido?.slice(0, 7) === mesAtual).length;
     const txConclusaoR = totalR > 0 ? Math.round(concluidosR / totalR * 100) : 0;
     const catCount = {};
-    registros.forEach(r => (r.categorias || []).forEach(c => {
-      catCount[c] = (catCount[c] || 0) + 1;
+    dados.forEach(r => (r.categorias || []).forEach(c => {
+      if (c !== 'Reconhecimento') catCount[c] = (catCount[c] || 0) + 1;
     }));
     const catOrd = Object.entries(catCount).sort((a, b) => b[1] - a[1]);
     const tecCount = {};
-    registros.forEach(r => {
+    dados.forEach(r => {
       if (r.autorNome) tecCount[r.autorNome] = (tecCount[r.autorNome] || 0) + 1;
     });
     const tecOrd = Object.entries(tecCount).sort((a, b) => b[1] - a[1]);
     const mesCount = {};
-    registros.forEach(r => {
+    dados.forEach(r => {
       if (!r.dataOcorrido) return;
       const k = r.dataOcorrido.slice(0, 7);
       mesCount[k] = (mesCount[k] || 0) + 1;
@@ -96,8 +701,6 @@ function DashboardScreen({
         right: bdr(s, cr)
       });
       const barVisual = (qtd, max) => '█'.repeat(Math.max(1, Math.round(qtd / (max || 1) * 20)));
-
-      // ───── ABA 1: RESUMO ─────
       const ws = wb.addWorksheet('Resumo');
       ws.getColumn(1).width = 30;
       ws.getColumn(2).width = 14;
@@ -112,7 +715,7 @@ function DashboardScreen({
       c.border = bdrA('medium', C.red);
       ws.mergeCells('A2:D2');
       c = ws.getCell('A2');
-      c.value = 'BDR Segurança do Trabalho';
+      c.value = `BDR Segurança do Trabalho · Período: ${ctx.titulo}${ctx.filtros ? ' · ' + ctx.filtros : ''}`;
       c.font = fnt(10, false, 'FF999999');
       c.fill = fll(C.bg);
       c.alignment = aln('center', 'center');
@@ -137,7 +740,16 @@ function DashboardScreen({
         c.alignment = aln('center', 'center');
         c.border = bdrA();
       });
-      [['Total de Registros', '', totalR], ['Registros Este Mês', '', doMesR], ['Concluídos', '', concluidosR], ['Pendentes', '', pendentesR], ['Taxa de Conclusão', '', txConclusaoR / 100]].forEach((row, i) => {
+      const indicadores = [
+        ['Total de Desvios', '', totalR],
+        ['Registros Este Mês', '', doMesR],
+        ['Concluídos', '', concluidosR],
+        ['Pendentes', '', pendentesR],
+        ['Sem Status', '', semStatusR],
+        ['Reconhecimentos', '', ctx.reconhecimentos],
+        ['Taxa de Conclusão', '', txConclusaoR / 100]
+      ];
+      indicadores.forEach((row, i) => {
         const r = 6 + i;
         const par = i % 2 === 0;
         const bg = par ? C.grayL : C.white;
@@ -149,9 +761,9 @@ function DashboardScreen({
           c.alignment = aln('center', 'center');
           c.border = bdrA();
         });
-        if (i === 4) ws.getCell(`C${r}`).numFmt = '0%';
+        if (i === indicadores.length - 1) ws.getCell(`C${r}`).numFmt = '0%';
       });
-      const catStart = 12;
+      const catStart = 6 + indicadores.length + 1;
       ws.mergeCells(`A${catStart}:D${catStart}`);
       c = ws.getCell(`A${catStart}`);
       c.value = 'DESVIOS POR CATEGORIA';
@@ -264,14 +876,11 @@ function DashboardScreen({
         ws.getCell(`B${r}`).font = fnt(10, false, C.preto);
         ws.getCell(`B${r}`).fill = fll(bg);
         ws.getCell(`B${r}`).border = bdrA();
-        ws.getCell(`B${r}`).alignment = aln('center', 'center');
         ws.getCell(`C${r}`).value = barVisual(qtd, maxMes);
         ws.getCell(`C${r}`).font = fnt(10, true, C.green);
         ws.getCell(`C${r}`).fill = fll(bg);
         ws.getCell(`C${r}`).border = bdrA();
       });
-
-      // ───── ABA 2: DETALHAMENTO ─────
       const wsDet = wb.addWorksheet('Detalhamento');
       const detH = ['Nº', 'Data', 'Hora', 'TST', 'Local', 'Categorias', 'Status', 'Colaborador', 'Resp. Setor', 'Resp. Registro', 'Descrição', 'Sugestão de Correção'];
       const detW = [5, 12, 8, 20, 20, 24, 10, 20, 20, 20, 45, 45];
@@ -284,7 +893,7 @@ function DashboardScreen({
         c.alignment = aln('center', 'center');
         c.border = bdrA('thin', 'FF999999');
       });
-      [...registros].sort((a, b) => (b.dataOcorrido || "").localeCompare(a.dataOcorrido || "")).forEach((r, i) => {
+      [...dados].sort((a, b) => (b.dataOcorrido || "").localeCompare(a.dataOcorrido || "")).forEach((r, i) => {
         const row = i + 2;
         const st = r.concluido || '';
         const stClr = st === 'SIM' ? 'FF1A7D42' : st === 'NÃO' ? 'FFA93226' : C.preto;
@@ -303,9 +912,7 @@ function DashboardScreen({
         state: 'frozen',
         ySplit: 1
       }];
-
-      // ───── ABA 3: PENDENTES ─────
-      const pends = registros.filter(r => r.concluido === "NÃO" || !r.concluido).slice().sort((a, b) => (a.dataOcorrido || "").localeCompare(b.dataOcorrido || ""));
+      const pends = dados.filter(r => r.concluido === "NÃO" || !r.concluido).slice().sort((a, b) => (a.dataOcorrido || "").localeCompare(b.dataOcorrido || ""));
       if (pends.length > 0) {
         const wsP = wb.addWorksheet('Pendentes');
         const pW = [5, 12, 14, 20, 20, 24, 45, 45, 20];
@@ -345,8 +952,6 @@ function DashboardScreen({
           ySplit: 1
         }];
       }
-
-      // ───── ABA 4: POR TÉCNICO ─────
       const tecNomes = Object.keys(tecCount).sort();
       if (tecNomes.length > 0) {
         const wsT = wb.addWorksheet('Por Técnico');
@@ -361,7 +966,7 @@ function DashboardScreen({
         c.border = bdrA('medium', C.red);
         row = 3;
         tecNomes.forEach(nome => {
-          const regs = registros.filter(r => r.autorNome === nome);
+          const regs = dados.filter(r => r.autorNome === nome);
           const conc = regs.filter(r => r.concluido === 'SIM').length;
           const pend = regs.filter(r => r.concluido === 'NÃO').length;
           const tx = regs.length > 0 ? Math.round(conc / regs.length * 100) : 0;
@@ -401,8 +1006,6 @@ function DashboardScreen({
           row++;
         });
       }
-
-      // ───── ABA 5: POR CATEGORIA ─────
       if (catOrd.length > 0) {
         const wsCat = wb.addWorksheet('Por Categoria');
         [20, 20, 20, 12, 50].forEach((w, i) => wsCat.getColumn(i + 1).width = w);
@@ -416,7 +1019,7 @@ function DashboardScreen({
         c.border = bdrA('medium', C.red);
         row = 3;
         catOrd.forEach(([cat, totalCat]) => {
-          const regs = registros.filter(r => (r.categorias || []).includes(cat));
+          const regs = dados.filter(r => (r.categorias || []).includes(cat));
           const conc = regs.filter(r => r.concluido === 'SIM').length;
           const pend = regs.filter(r => r.concluido === 'NÃO').length;
           wsCat.mergeCells(row, 1, row, 5);
@@ -469,56 +1072,17 @@ function DashboardScreen({
       alert('Erro ao gerar Excel: ' + (err?.message || err));
     }
   }
-  const mesKey = useMemo(() => new Date().toLocaleDateString('en-CA').slice(0, 7), []);
-  const stats = useMemo(() => {
-    const total = registros.length;
-    const doMes = registros.filter(r => r.dataOcorrido?.slice(0, 7) === mesKey).length;
-    const concluidos = registros.filter(r => r.concluido === "SIM").length;
-    const pendentes = registros.filter(r => r.concluido === "NÃO").length;
-    const categorias = {};
-    registros.forEach(r => (r.categorias || []).forEach(cat => {
-      categorias[cat] = (categorias[cat] || 0) + 1;
-    }));
-    const catOrd = Object.entries(categorias).sort((a, b) => b[1] - a[1]);
+  function ctxExport() {
+    const filtrosTxt = [filtroTecnico !== 'todos' ? `TST: ${tecnicos.find(t => t.id === filtroTecnico)?.label || filtroTecnico}` : null, filtroCategoria !== 'todas' ? `Categoria: ${filtroCategoria}` : null, filtroStatus !== 'todos' ? `Status: ${filtroStatus === 'SIM' ? 'Concluídos' : 'Pendentes'}` : null].filter(Boolean).join(' · ');
     return {
-      total,
-      doMes,
-      concluidos,
-      pendentes,
-      tx: total > 0 ? Math.round(concluidos / total * 100) : 0,
-      catOrd,
-      max: catOrd[0]?.[1] || 1
+      titulo: rotuloPeriodo(),
+      filtros: filtrosTxt,
+      reconhecimentos: stats.recs,
+      atrasados: stats.atrasados,
+      diasEmAberto: stats.diasEmAberto,
+      locais: stats.locOrd
     };
-  }, [registros]);
-  const CORES = ["#f5c518", "#27ae60", "#3498db", "#e74c3c", "#9b59b6", "#1abc9c", "#e67e22", "#2ecc71"];
-  const canvasWrap = {
-    maxWidth: 500,
-    margin: "0 auto"
-  };
-  const sec = (title, hint) => /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "baseline",
-      justifyContent: "space-between",
-      marginBottom: 14
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontFamily: "'Oswald',sans-serif",
-      fontSize: 11,
-      letterSpacing: 3,
-      color: "#f5c518",
-      textTransform: "uppercase",
-      borderLeft: "2px solid #f5a623",
-      paddingLeft: 8
-    }
-  }, title), hint && /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 10,
-      color: "rgba(255,255,255,0.3)",
-      fontStyle: "italic"
-    }
-  }, hint));
+  }
   return /*#__PURE__*/React.createElement("div", {
     style: {
       minHeight: "100vh",
@@ -528,7 +1092,7 @@ function DashboardScreen({
     }
   }, /*#__PURE__*/React.createElement(Header, {
     title: "DASHBOARD",
-    subtitle: `${stats.total} registros no total`,
+    subtitle: `${stats.total} desvios · ${rotuloPeriodo()}`,
     onBack: onBack
   }), loading ? /*#__PURE__*/React.createElement(Spinner, null) : /*#__PURE__*/React.createElement("div", {
     style: {
@@ -537,6 +1101,96 @@ function DashboardScreen({
       margin: "0 auto"
     }
   }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 4
+    }
+  }, /*#__PURE__*/React.createElement(FiltroChips, {
+    label: "Per\xEDodo",
+    opcoes: opsPeriodo,
+    valor: periodo,
+    onChange: v => setPeriodo(v)
+  })), periodo === 'custom' && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+      gap: 10,
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "De"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: customInicio,
+    onChange: e => setCustomInicio(e.target.value)
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "At\xE9"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: customFim,
+    onChange: e => setCustomFim(e.target.value)
+  }))), filtrosAtivos > 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement(FiltroChips, {
+    label: "Por TST",
+    opcoes: opsTecs,
+    valor: filtroTecnico,
+    onChange: setFiltroTecnico
+  }), /*#__PURE__*/React.createElement(FiltroChips, {
+    label: "Por Categoria",
+    opcoes: opsCats,
+    valor: filtroCategoria,
+    onChange: setFiltroCategoria
+  }), /*#__PURE__*/React.createElement(FiltroChips, {
+    label: "Por Status",
+    opcoes: opsStatus,
+    valor: filtroStatus,
+    onChange: setFiltroStatus
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: limparFiltros,
+    style: {
+      background: "transparent",
+      border: "1px solid rgba(41,128,185,0.4)",
+      color: "#3498db",
+      fontFamily: "'Oswald',sans-serif",
+      fontSize: 11,
+      padding: "6px 14px",
+      borderRadius: 20,
+      cursor: "pointer",
+      letterSpacing: 1,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6
+    }
+  }, /*#__PURE__*/React.createElement(FilterIcon, {
+    size: 12
+  }), "LIMPAR FILTROS")) : /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "folder-tile-fx",
+    onClick: () => setFiltroStatus('todos'),
+    style: {
+      "--glow": "#3498db",
+      background: "transparent",
+      border: "1px dashed rgba(52,152,219,0.4)",
+      color: "#3498db",
+      fontFamily: "'Oswald',sans-serif",
+      fontSize: 11,
+      padding: "7px 14px",
+      borderRadius: 20,
+      cursor: "pointer",
+      letterSpacing: 1,
+      display: "flex",
+      alignItems: "center",
+      gap: 6
+    }
+  }, /*#__PURE__*/React.createElement(FilterIcon, {
+    size: 12
+  }), "FILTRAR")), /*#__PURE__*/React.createElement("div", {
     style: {
       background: "linear-gradient(135deg,rgba(245,166,35,0.12),rgba(245,166,35,0.04))",
       border: "1px solid rgba(245,166,35,0.25)",
@@ -615,83 +1269,110 @@ function DashboardScreen({
       color: "#e74c3c",
       marginTop: 4
     }
-  }, stats.pendentes, " pendente", stats.pendentes !== 1 ? "s" : ""))), /*#__PURE__*/React.createElement("div", {
+  }, stats.pendentes, " pendente", stats.pendentes !== 1 ? "s" : "", prevStats ? ` (antes: ${prevStats.total} de ${prevStats.pendentes})` : ""))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
       gridTemplateColumns: "1fr 1fr",
       gap: 10,
       marginBottom: 16
     }
-  }, [["Total RDRs", "#f5c518", stats.total, {}, /*#__PURE__*/React.createElement(DocumentIcon, {
-    size: 20
-  })], ["Este mês", "#3498db", stats.doMes, {
-    data: "mes"
-  }, /*#__PURE__*/React.createElement(CalendarIcon, {
-    size: 20
-  })], ["Concluídos", "#27ae60", stats.concluidos, {
-    concluido: "SIM"
-  }, /*#__PURE__*/React.createElement(CheckIcon, {
-    size: 20
-  })], ["Pendentes", "#e74c3c", stats.pendentes, {
-    concluido: "NÃO"
-  }, /*#__PURE__*/React.createElement(AlertCircleIcon, null)]].map(([label, cor, val, filtro, icon]) => /*#__PURE__*/React.createElement("button", {
-    key: label,
-    className: "folder-tile-fx",
-    onClick: () => onVerRegistros(filtro),
+  }, /*#__PURE__*/React.createElement(StatCard, {
+    label: "Desvios",
+    val: stats.total,
+    cor: "#f5c518",
+    icon: /*#__PURE__*/React.createElement(DocumentIcon, {
+      size: 20
+    }),
+    delta: deltaTotal,
+    onClick: () => onVerRegistros(navComFiltros({}))
+  }), /*#__PURE__*/React.createElement(StatCard, {
+    label: "Conclu\xEDdos",
+    val: stats.concluidos,
+    cor: "#27ae60",
+    icon: /*#__PURE__*/React.createElement(CheckIcon, {
+      size: 20
+    }),
+    delta: deltaConcluidos,
+    onClick: () => onVerRegistros(navComFiltros({
+      concluido: "SIM"
+    }))
+  }), /*#__PURE__*/React.createElement(StatCard, {
+    label: "Pendentes",
+    val: stats.pendentes,
+    cor: "#e74c3c",
+    icon: /*#__PURE__*/React.createElement(AlertCircleIcon, null),
+    delta: deltaPendentes,
+    onClick: () => onVerRegistros(navComFiltros({
+      concluido: "NÃO"
+    }))
+  }), /*#__PURE__*/React.createElement(StatCard, {
+    label: "Em atraso",
+    val: stats.atrasados,
+    cor: "#e67e22",
+    icon: /*#__PURE__*/React.createElement(AlertIcon, {
+      size: 20
+    }),
+    onClick: () => onVerRegistros(navComFiltros({
+      concluido: "NÃO"
+    }))
+  })), /*#__PURE__*/React.createElement("div", {
     style: {
-      "--glow": cor,
-      background: `linear-gradient(135deg,${cor}18,${cor}08)`,
-      border: `1px solid ${cor}35`,
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+      gap: 10,
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement(StatCard, {
+    label: "Reconhecimentos",
+    val: stats.recs,
+    cor: "#3498db",
+    icon: /*#__PURE__*/React.createElement(CalendarIcon, {
+      size: 20
+    }),
+    onClick: () => onVerRegistros(navComFiltros({
+      categoria: "Reconhecimento"
+    }))
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "rgba(52,152,219,0.08)",
+      border: "1px solid rgba(52,152,219,0.3)",
       borderRadius: 14,
       padding: "16px 14px",
-      cursor: "pointer",
-      textAlign: "left",
-      outline: "none",
-      position: "relative",
-      overflow: "hidden"
+      display: "flex",
+      flexDirection: "column",
+      justifyContent: "center"
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      position: "absolute",
-      top: 12,
-      right: 12,
-      color: cor,
-      opacity: 0.4
+      fontSize: 13,
+      color: "rgba(255,255,255,0.4)",
+      fontFamily: "'Oswald',sans-serif",
+      letterSpacing: 1.5,
+      textTransform: "uppercase"
     }
-  }, icon), /*#__PURE__*/React.createElement("div", {
+  }, "Dias em aberto"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 34,
       fontWeight: 700,
       fontFamily: "'Oswald',sans-serif",
-      color: cor,
-      lineHeight: 1
+      color: "#3498db",
+      lineHeight: 1.2,
+      marginTop: 2
     }
-  }, val), /*#__PURE__*/React.createElement("div", {
+  }, stats.diasEmAberto, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 13,
+      color: "rgba(255,255,255,0.4)",
+      fontWeight: 400,
+      marginLeft: 6
+    }
+  }, "dias")), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 10,
-      color: "rgba(232,220,200,0.45)",
-      letterSpacing: 1.5,
-      fontFamily: "'Oswald',sans-serif",
-      textTransform: "uppercase",
-      marginTop: 6
+      color: "rgba(232,220,200,0.4)",
+      marginTop: 4
     }
-  }, label), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 10,
-      color: cor,
-      marginTop: 8,
-      fontFamily: "'Oswald',sans-serif",
-      letterSpacing: 1,
-      opacity: 0.75,
-      display: "flex",
-      alignItems: "center",
-      gap: 4
-    }
-  }, "VER ", /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 12
-    }
-  }, "\u2192"))))), /*#__PURE__*/React.createElement("div", {
+  }, "m\xE9dia dos pendentes do per\xEDodo"))), /*#__PURE__*/React.createElement("div", {
     style: {
       background: "#0d0d0d",
       border: "1px solid rgba(255,255,255,0.07)",
@@ -699,84 +1380,14 @@ function DashboardScreen({
       padding: "18px",
       marginBottom: 16
     }
-  }, sec("Desvios por Categoria", "toque para filtrar"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 16
-    }
-  }, stats.catOrd.map(([cat, qtd], i) => {
-    const pct = Math.round(qtd / stats.max * 100);
-    return /*#__PURE__*/React.createElement("button", {
-      key: cat,
-      onClick: () => onVerRegistros({
-        categoria: cat
-      }),
-      style: {
-        width: "100%",
-        background: "none",
-        border: "none",
-        padding: "7px 0",
-        cursor: "pointer",
-        outline: "none",
-        marginBottom: 4
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        marginBottom: 4
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        width: 8,
-        height: 8,
-        borderRadius: "50%",
-        background: CORES[i % CORES.length],
-        flexShrink: 0
-      }
-    }), /*#__PURE__*/React.createElement("div", {
-      style: {
-        flex: 1,
-        fontFamily: "'Oswald',sans-serif",
-        fontSize: 12,
-        color: "#ffffff",
-        letterSpacing: 1,
-        textAlign: "left"
-      }
-    }, cat), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontFamily: "'Oswald',sans-serif",
-        fontWeight: 700,
-        fontSize: 13,
-        color: CORES[i % CORES.length]
-      }
-    }, qtd)), /*#__PURE__*/React.createElement("div", {
-      style: {
-        background: "#111111",
-        borderRadius: 4,
-        height: 5,
-        overflow: "hidden",
-        marginLeft: 18
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        width: `${pct}%`,
-        height: "100%",
-        background: `linear-gradient(90deg,${CORES[i % CORES.length]},${CORES[i % CORES.length]}88)`,
-        borderRadius: 4,
-        transition: "width 0.6s ease"
-      }
-    })));
-  })), /*#__PURE__*/React.createElement("div", {
-    style: canvasWrap
-  }, stats.catOrd.length === 0 && /*#__PURE__*/React.createElement("div", {
+  }, sec("Desvios por Categoria", "toque para filtrar"), stats.catOrd.length === 0 ? /*#__PURE__*/React.createElement("div", {
     style: {
       textAlign: "center",
       color: "rgba(255,255,255,0.3)",
       fontSize: 12,
       padding: 10
     }
-  }, "Sem dados"))), /*#__PURE__*/React.createElement("div", {
+  }, "Sem dados no per\xEDodo") : chartErr ? /*#__PURE__*/React.createElement("div", null, barrasCSS(stats.catOrd, stats.maxCat, CORES)) : /*#__PURE__*/React.createElement("div", null, canvasSec(catRef, 260))), /*#__PURE__*/React.createElement("div", {
     style: {
       background: "#0d0d0d",
       border: "1px solid rgba(255,255,255,0.07)",
@@ -784,88 +1395,14 @@ function DashboardScreen({
       padding: "18px",
       marginBottom: 16
     }
-  }, sec("RDR por TST", "toque para filtrar"), /*#__PURE__*/React.createElement("div", {
-    style: canvasWrap
-  }, (() => {
-    const tecnicos = {};
-    registros.forEach(r => {
-      if (r.autorNome) tecnicos[r.autorNome] = (tecnicos[r.autorNome] || 0) + 1;
-    });
-    const entries = Object.entries(tecnicos).sort((a, b) => b[1] - a[1]);
-    const maxTec = entries[0]?.[1] || 1;
-    if (entries.length === 0) return /*#__PURE__*/React.createElement("div", {
-      style: {
-        textAlign: "center",
-        color: "rgba(255,255,255,0.3)",
-        fontSize: 12,
-        padding: 10
-      }
-    }, "Sem dados");
-    return entries.map(([nome, qtd], i) => {
-      const pct = Math.round(qtd / maxTec * 100);
-      const tec = registros.find(r => r.autorNome === nome);
-      return /*#__PURE__*/React.createElement("button", {
-        key: nome,
-        onClick: () => tec && onVerRegistros({
-          tecnico: tec.autorId
-        }),
-        style: {
-          width: "100%",
-          background: "none",
-          border: "none",
-          padding: "7px 0",
-          cursor: "pointer",
-          outline: "none"
-        }
-      }, /*#__PURE__*/React.createElement("div", {
-        style: {
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          marginBottom: 4
-        }
-      }, /*#__PURE__*/React.createElement("div", {
-        style: {
-          width: 8,
-          height: 8,
-          borderRadius: "50%",
-          background: CORES[i % CORES.length],
-          flexShrink: 0
-        }
-      }), /*#__PURE__*/React.createElement("div", {
-        style: {
-          flex: 1,
-          fontFamily: "'Oswald',sans-serif",
-          fontSize: 12,
-          color: "#ffffff",
-          letterSpacing: 1,
-          textAlign: "left"
-        }
-      }, nome), /*#__PURE__*/React.createElement("div", {
-        style: {
-          fontFamily: "'Oswald',sans-serif",
-          fontWeight: 700,
-          fontSize: 13,
-          color: CORES[i % CORES.length]
-        }
-      }, qtd)), /*#__PURE__*/React.createElement("div", {
-        style: {
-          background: "#111111",
-          borderRadius: 4,
-          height: 5,
-          overflow: "hidden",
-          marginLeft: 18
-        }
-      }, /*#__PURE__*/React.createElement("div", {
-        style: {
-          width: `${pct}%`,
-          height: "100%",
-          background: `linear-gradient(90deg,${CORES[i % CORES.length]},${CORES[i % CORES.length]}88)`,
-          borderRadius: 4
-        }
-      })));
-    });
-  })())), /*#__PURE__*/React.createElement("div", {
+  }, sec("RDR por TST", "toque para filtrar"), tecOrd.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "center",
+      color: "rgba(255,255,255,0.3)",
+      fontSize: 12,
+      padding: 10
+    }
+  }, "Sem dados no per\xEDodo") : chartErr ? /*#__PURE__*/React.createElement("div", null, barrasCSS(tecOrd, tecOrd[0]?.[1] || 1, CORES)) : /*#__PURE__*/React.createElement("div", null, canvasSec(tecRef, 280))), /*#__PURE__*/React.createElement("div", {
     style: {
       background: "#0d0d0d",
       border: "1px solid rgba(255,255,255,0.07)",
@@ -873,86 +1410,36 @@ function DashboardScreen({
       padding: "18px",
       marginBottom: 16
     }
-  }, sec("Evolução Mensal", "toque para filtrar"), /*#__PURE__*/React.createElement("div", {
+  }, sec("Evolu\xE7\xE3o", "desvios no per\xEDodo"), evolucao.length === 0 ? /*#__PURE__*/React.createElement("div", {
     style: {
-      ...canvasWrap,
-      display: "flex",
-      alignItems: "flex-end",
-      gap: 8,
-      height: 140,
-      padding: "0 4px"
+      textAlign: "center",
+      color: "rgba(255,255,255,0.3)",
+      fontSize: 12,
+      padding: 10
     }
-  }, (() => {
-    const meses = {};
-    registros.forEach(r => {
-      if (!r.dataOcorrido) return;
-      const k = r.dataOcorrido.slice(0, 7);
-      meses[k] = (meses[k] || 0) + 1;
-    });
-    const ordenados = Object.keys(meses).sort().slice(-6);
-    if (ordenados.length === 0) return /*#__PURE__*/React.createElement("div", {
-      style: {
-        textAlign: "center",
-        color: "rgba(255,255,255,0.3)",
-        fontSize: 12,
-        padding: 10,
-        width: "100%"
-      }
-    }, "Sem dados");
-    const maxMes = Math.max(...ordenados.map(k => meses[k]), 1);
-    return ordenados.map(k => {
-      const [yr, m] = k.split("-");
-      const altura = Math.max(meses[k] / maxMes * 100, 8);
-      return /*#__PURE__*/React.createElement("button", {
-        key: k,
-        onClick: () => onVerRegistros({
-          data: 'mes',
-          mesExato: k
-        }),
-        style: {
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "flex-end",
-          height: "100%",
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          outline: "none",
-          gap: 6
-        }
-      }, /*#__PURE__*/React.createElement("div", {
-        style: {
-          fontFamily: "'Oswald',sans-serif",
-          fontWeight: 700,
-          fontSize: 12,
-          color: "#f5c518"
-        }
-      }, meses[k]), /*#__PURE__*/React.createElement("div", {
-        style: {
-          width: "70%",
-          height: `${altura}%`,
-          background: "linear-gradient(180deg,#f5a623,#e8930a)",
-          borderRadius: "6px 6px 0 0",
-          minHeight: 6
-        }
-      }), /*#__PURE__*/React.createElement("div", {
-        style: {
-          fontSize: 10,
-          color: "rgba(255,255,255,0.5)",
-          fontFamily: "'Oswald',sans-serif"
-        }
-      }, m, "/", yr.slice(2)));
-    });
-  })())), /*#__PURE__*/React.createElement("div", {
+  }, "Sem dados no per\xEDodo") : chartErr ? /*#__PURE__*/React.createElement("div", null, barrasCSS(evolucao.map(b => [b.label, b.total]), Math.max(...evolucao.map(b => b.total), 1), CORES)) : /*#__PURE__*/React.createElement("div", null, canvasSec(mesRef, 220))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#0d0d0d",
+      border: "1px solid rgba(255,255,255,0.07)",
+      borderRadius: 14,
+      padding: "18px",
+      marginBottom: 16
+    }
+  }, sec("Locais com mais desvios", "toque para abrir os registros"), stats.locOrd.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "center",
+      color: "rgba(255,255,255,0.3)",
+      fontSize: 12,
+      padding: 10
+    }
+  }, "Sem dados no per\xEDodo") : chartErr ? /*#__PURE__*/React.createElement("div", null, barrasCSS(stats.locOrd, stats.maxLoc, CORES)) : /*#__PURE__*/React.createElement("div", null, canvasSec(locRef, 300))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 10
     }
   }, /*#__PURE__*/React.createElement("button", {
     className: "folder-tile-fx",
-    onClick: exportarExcel,
+    onClick: () => exportarExcel(desvios, ctxExport()),
     style: {
       "--glow": "#27ae60",
       flex: 1,
@@ -973,7 +1460,7 @@ function DashboardScreen({
     }
   }, /*#__PURE__*/React.createElement(DownloadIcon, null), "EXCEL DETALHADO"), /*#__PURE__*/React.createElement("button", {
     className: "folder-tile-fx",
-    onClick: () => gerarPDFDashboard(registros),
+    onClick: () => gerarPDFDashboard(desvios, ctxExport()),
     style: {
       "--glow": "#f5c518",
       flex: 1,

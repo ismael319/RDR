@@ -64,7 +64,7 @@ function RegistrosScreen({
   const [filtroData, setFiltroData] = useState(periodo || (filtroInicial.mesExato ? 'mesExato' : filtroInicial.data || 'todas'));
   const [filtroConcluido, setFiltroConcluido] = useState(filtroInicial.concluido || 'todos');
   const [filtroMes, setFiltroMes] = useState(filtroInicial.mesExato || '');
-  const [busca, setBusca] = useState('');
+  const [busca, setBusca] = useState(filtroInicial.busca || '');
   const [showFiltros, setShowFiltros] = useState(!modoSimples && Object.keys(filtroInicial).length > 0);
   const hojeKey = new Date().toLocaleDateString('en-CA');
   const ontemKey = new Date(Date.now() - 86400000).toLocaleDateString('en-CA');

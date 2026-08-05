@@ -1,4 +1,4 @@
-async function gerarPDFDashboard(registros) {
+async function gerarPDFDashboard(registros, ctx = {}) {
   try {
     await carregarJsPDF();
     const jsPDF = getJsPDF();
@@ -32,18 +32,36 @@ async function gerarPDFDashboard(registros) {
         align
       });
     };
+    const quebraPagina = (limite = 250) => {
+      if (y > limite) {
+        doc.addPage();
+        y = 20;
+      }
+    };
 
     // ── Cálculos ──
-    const hojeKey = new Date().toLocaleDateString('en-CA');
-    const mesAtual = hojeKey.slice(0, 7);
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const hojeKey = hoje.toLocaleDateString('en-CA');
     const total = registros.length;
     const concluidos = registros.filter(r => r.concluido === "SIM").length;
-    const pendentes = registros.filter(r => r.concluido === "NÃO").length;
-    const doMes = registros.filter(r => r.dataOcorrido?.slice(0, 7) === mesAtual).length;
+    const pendentes = registros.filter(r => r.concluido !== "SIM").length;
     const txConclusao = total > 0 ? Math.round(concluidos / total * 100) : 0;
+    const atrasados = pendentes.filter(r => {
+      const occ = r.dataOcorrido ? new Date(r.dataOcorrido + 'T12:00:00') : null;
+      const dias = occ ? Math.max(0, Math.floor((hoje - occ) / 86400000)) : 0;
+      if (dias > 7) return true;
+      if (r.prazo && new Date(r.prazo + 'T23:59:59') < hoje) return true;
+      return false;
+    }).length;
+    const diasEmAberto = pendentes.length ? Math.round(pendentes.reduce((acc, r) => {
+      const occ = r.dataOcorrido ? new Date(r.dataOcorrido + 'T12:00:00') : hoje;
+      return acc + Math.max(0, Math.floor((hoje - occ) / 86400000));
+    }, 0) / pendentes.length) : 0;
+    const recs = ctx.reconhecimentos ?? 0;
     const catCount = {};
     registros.forEach(r => (r.categorias || []).forEach(c => {
-      catCount[c] = (catCount[c] || 0) + 1;
+      if (c !== 'Reconhecimento') catCount[c] = (catCount[c] || 0) + 1;
     }));
     const catOrd = Object.entries(catCount).sort((a, b) => b[1] - a[1]);
     const tecCount = {};
@@ -58,20 +76,31 @@ async function gerarPDFDashboard(registros) {
       mesCount[k] = (mesCount[k] || 0) + 1;
     });
     const mesOrd = Object.entries(mesCount).sort((a, b) => a[0].localeCompare(b[0])).slice(-6);
+    const locCount = {};
+    registros.forEach(r => {
+      if (r.local && r.local.trim()) {
+        const l = r.local.trim();
+        locCount[l] = (locCount[l] || 0) + 1;
+      }
+    });
+    const locOrd = Object.entries(locCount).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    const tituloPeriodo = ctx.titulo || "Todo o período";
+    const filtrosTxt = ctx.filtros || "";
 
     // ── CABEÇALHO ──
-    rc(0, 0, W, 32, [20, 40, 60]);
+    rc(0, 0, W, 34, [20, 40, 60]);
     tx("BDR", margin, 16, 22, true, [245, 166, 35]);
     tx("Relatório de Indicadores RDR", margin, 24, 11, true, [255, 255, 255]);
-    tx("Segurança do Trabalho", margin, 29, 8, false, [200, 200, 200]);
+    tx(tituloPeriodo, margin, 30, 8, false, [200, 200, 200]);
     tx(new Date().toLocaleDateString("pt-BR"), W - margin, 16, 10, true, [255, 255, 255], "right");
-    tx(`${total} registros`, W - margin, 22, 9, false, [200, 200, 200], "right");
-    y = 42;
+    tx(`${total} desvios`, W - margin, 22, 9, false, [200, 200, 200], "right");
+    if (filtrosTxt) tx(filtrosTxt, W - margin, 27, 7, false, [200, 200, 200], "right");
+    y = 44;
 
     // ── CARDS DE INDICADORES ──
     const cardW = (col - 12) / 4,
       cardH = 24;
-    const cards = [["Total", total, [245, 166, 35]], ["Este Mês", doMes, [52, 152, 219]], ["Concluídos", concluidos, [39, 174, 96]], ["Pendentes", pendentes, [231, 76, 60]]];
+    const cards = [["Total", total, [245, 166, 35]], ["Concluídos", concluidos, [39, 174, 96]], ["Pendentes", pendentes, [231, 76, 60]], ["Em Atraso", atrasados, [230, 126, 34]]];
     cards.forEach((c, i) => {
       const cx = margin + i * (cardW + 4);
       doc.setFillColor(248, 248, 248);
@@ -84,17 +113,16 @@ async function gerarPDFDashboard(registros) {
     });
     y += cardH + 10;
 
-    // ── ANEL DE TAXA DE CONCLUSÃO ──
-    rc(margin, y, col, 8, [240, 244, 248]);
+    // ── ANEL DE TAXA DE CONCLUSÃO + INFO ──
+    rc(margin, y, col, 20, [240, 244, 248]);
     tx("TAXA DE CONCLUSÃO", margin + 2, y + 5.5, 8, true, [100, 120, 140]);
-    y += 14;
+    y += 16;
     const cxAnel = margin + 18,
       cyAnel = y + 14,
       raio = 14;
     doc.setDrawColor(230, 230, 230);
     doc.setLineWidth(4);
     doc.circle(cxAnel, cyAnel, raio, "S");
-    // Arco proporcional (aproximado com segmentos)
     doc.setDrawColor(245, 166, 35);
     doc.setLineWidth(4);
     const passos = Math.round(txConclusao / 100 * 72);
@@ -104,9 +132,10 @@ async function gerarPDFDashboard(registros) {
       doc.line(cxAnel + raio * Math.cos(ang1), cyAnel + raio * Math.sin(ang1), cxAnel + raio * Math.cos(ang2), cyAnel + raio * Math.sin(ang2));
     }
     tx(`${txConclusao}%`, cxAnel, cyAnel + 2, 12, true, [245, 166, 35], "center");
-    tx(`${concluidos} de ${total} registros concluídos`, margin + 42, y + 10, 10, false, [60, 60, 60]);
-    tx(`${pendentes} pendente${pendentes !== 1 ? "s" : ""} de ação`, margin + 42, y + 17, 9, false, [231, 76, 60]);
-    y += 34;
+    tx(`${concluidos} de ${total} desvios concluídos`, margin + 42, y + 10, 10, false, [60, 60, 60]);
+    tx(`${pendentes} pendente${pendentes !== 1 ? "s" : ""} de ação · ${atrasados} em atraso`, margin + 42, y + 17, 9, false, [231, 76, 60]);
+    y += 38;
+    quebraPagina();
 
     // ── GRÁFICO DE BARRAS: CATEGORIAS ──
     if (catOrd.length > 0) {
@@ -127,10 +156,7 @@ async function gerarPDFDashboard(registros) {
         tx(qtd, margin + 44 + w + 3, by + 5, 8, true, cor);
       });
       y += catOrd.length * (barH + gap) + 8;
-    }
-    if (y > 250) {
-      doc.addPage();
-      y = 20;
+      quebraPagina();
     }
 
     // ── GRÁFICO DE PIZZA: TÉCNICOS ──
@@ -157,7 +183,6 @@ async function gerarPDFDashboard(registros) {
         }
         anguloInicio = anguloFim;
       });
-      // Legenda
       const legX = margin + 56;
       tecOrd.forEach(([nome, qtd], i) => {
         const ly = y + 4 + i * 7;
@@ -168,10 +193,30 @@ async function gerarPDFDashboard(registros) {
         tx(`${qtd} (${Math.round(qtd / total * 100)}%)`, legX + 7 + 45, ly, 8, true, cor);
       });
       y += Math.max(44, tecOrd.length * 7 + 10);
+      quebraPagina(235);
     }
-    if (y > 235) {
-      doc.addPage();
-      y = 20;
+
+    // ── GRÁFICO DE BARRAS: LOCAIS ──
+    if (locOrd.length > 0) {
+      rc(margin, y, col, 8, [240, 244, 248]);
+      tx("LOCAIS COM MAIS DESVIOS", margin + 2, y + 5.5, 8, true, [100, 120, 140]);
+      y += 12;
+      const maxLoc = locOrd[0][1];
+      const barH = 7,
+        gap = 3,
+        chartW = col - 62;
+      locOrd.forEach(([local, qtd], i) => {
+        const by = y + i * (barH + gap);
+        const w = Math.max(qtd / maxLoc * chartW, 3);
+        const cor = CORES[i % CORES.length];
+        const nome = local.length > 32 ? local.slice(0, 31) + "…" : local;
+        tx(nome, margin, by + 5, 8, false, [60, 60, 60]);
+        doc.setFillColor(...cor);
+        doc.roundedRect(margin + 56, by, w, barH, 1, 1, "F");
+        tx(qtd, margin + 56 + w + 3, by + 5, 8, true, cor);
+      });
+      y += locOrd.length * (barH + gap) + 8;
+      quebraPagina();
     }
 
     // ── GRÁFICO DE LINHA: EVOLUÇÃO MENSAL ──
@@ -184,7 +229,6 @@ async function gerarPDFDashboard(registros) {
       const maxMes = Math.max(...mesOrd.map(([, q]) => q), 1);
       const stepX = chartW2 / (mesOrd.length - 1 || 1);
       const baseY = y + chartH;
-      // eixo
       doc.setDrawColor(220, 220, 220);
       doc.line(margin + 5, baseY, margin + 5 + chartW2, baseY);
       const pontos = mesOrd.map(([mes, qtd], i) => {
@@ -205,6 +249,49 @@ async function gerarPDFDashboard(registros) {
         tx(`${m}/${yr.slice(2)}`, px, baseY + 6, 7, false, [100, 100, 100], "center");
       });
       y = baseY + 14;
+    }
+
+    // ── RESUMO DE PENDÊNCIAS ──
+    const atrasadosLista = registros.filter(r => {
+      if (r.concluido === "SIM") return false;
+      const occ = r.dataOcorrido ? new Date(r.dataOcorrido + 'T12:00:00') : null;
+      const dias = occ ? Math.max(0, Math.floor((hoje - occ) / 86400000)) : 0;
+      if (dias > 7) return true;
+      if (r.prazo && new Date(r.prazo + 'T23:59:59') < hoje) return true;
+      return false;
+    }).slice().sort((a, b) => (a.dataOcorrido || "").localeCompare(b.dataOcorrido || ""));
+    if (atrasadosLista.length > 0) {
+      quebraPagina(240);
+      rc(margin, y, col, 8, [240, 244, 248]);
+      tx("REGISTROS EM ATRASO", margin + 2, y + 5.5, 8, true, [231, 76, 60]);
+      y += 12;
+      const linhas = atrasadosLista.slice(0, 12);
+      linhas.forEach((r, i) => {
+        if (y > 278) {
+          doc.addPage();
+          y = 20;
+        }
+        const occ = r.dataOcorrido ? new Date(r.dataOcorrido + 'T12:00:00') : null;
+        const dias = occ ? Math.max(0, Math.floor((hoje - occ) / 86400000)) : null;
+        const prazoEstourado = r.prazo && new Date(r.prazo + 'T23:59:59') < hoje;
+        const cor = prazoEstourado ? [192, 57, 43] : [230, 126, 34];
+        doc.setFillColor(...cor);
+        doc.rect(margin, y, 2, 8, "F");
+        tx(`${(r.dataOcorrido || "").split("-").reverse().join("/")}`, margin + 5, y + 5.5, 8, true, cor);
+        tx(`${dias !== null ? dias + "d" : ""}`, margin + 5 + 15, y + 5.5, 8, true, [100, 100, 100]);
+        const desc = (r.descricao || "").split("\n").join(" ").replace(/\s+/g, " ").trim();
+        tx(desc.length > 100 ? desc.slice(0, 99) + "…" : desc, margin + 5 + 28, y + 5.5, 8, false, [60, 60, 60]);
+        y += 9;
+      });
+      y += 4;
+    }
+    if (recs > 0 || diasEmAberto > 0) {
+      rc(margin, y, col, 8, [240, 244, 248]);
+      tx("RECONHECIMENTOS E PENDÊNCIAS", margin + 2, y + 5.5, 8, true, [100, 120, 140]);
+      y += 12;
+      tx(`Reconhecimentos no período: ${recs}`, margin, y, 9, false, [60, 60, 60]);
+      tx(`Média de dias em aberto (pendentes): ${diasEmAberto}`, margin + 80, y, 9, false, [60, 60, 60]);
+      y += 10;
     }
 
     // ── RODAPÉ ──
