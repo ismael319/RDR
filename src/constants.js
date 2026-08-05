@@ -22,11 +22,11 @@ const SESSION_KEY = 'rdr_session';
 const session = {
   get: () => {
     try {
-      return JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null');
+      return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
     } catch {
       return null;
     }
   },
-  set: u => sessionStorage.setItem(SESSION_KEY, JSON.stringify(u)),
-  clear: () => sessionStorage.removeItem(SESSION_KEY)
+  set: u => localStorage.setItem(SESSION_KEY, JSON.stringify(u)),
+  clear: () => localStorage.removeItem(SESSION_KEY)
 };

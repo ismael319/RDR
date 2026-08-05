@@ -31,11 +31,15 @@ function App() {
   function voltarView() {
     if (prevScreen === "registros-dash") setScreen("registros-dash");else if (prevScreen === "registros-periodo") setScreen("registros-periodo");else setScreen("registros");
   }
+  useEffect(() => {
+    if (user) fsdb.sincronizar();
+  }, [user && user.id]);
   if (!user) return /*#__PURE__*/React.createElement(LoginScreen, {
     onLogin: handleLogin
   });
   const backAlvo = user.role === 'gestor' ? "campo" : "home";
-  if (screen === "home") return /*#__PURE__*/React.createElement(HomeScreen, {
+  let tela = null;
+  if (screen === "home") tela = /*#__PURE__*/React.createElement(HomeScreen, {
     user: user,
     onNew: () => setScreen("form"),
     onRegistros: handleVerPeriodo,
@@ -46,7 +50,7 @@ function App() {
     onLogout: handleLogout,
     onVerTodos: () => setScreen("registros")
   });
-  if (screen === "campo" && user.role === 'gestor') return /*#__PURE__*/React.createElement(CampoHubScreen, {
+  if (screen === "campo" && user.role === 'gestor') tela = /*#__PURE__*/React.createElement(CampoHubScreen, {
     user: user,
     onNew: () => setScreen("form"),
     onRegistros: handleVerPeriodo,
@@ -55,48 +59,49 @@ function App() {
     onVerTodos: () => setScreen("registros"),
     onBack: () => setScreen("home")
   });
-  if (screen === "form") return /*#__PURE__*/React.createElement(FormScreen, {
+  if (screen === "form") tela = /*#__PURE__*/React.createElement(FormScreen, {
     user: user,
     onBack: () => setScreen(backAlvo),
     onSaved: () => setScreen(backAlvo),
     editData: null
   });
-  if (screen === "registros") return /*#__PURE__*/React.createElement(RegistrosScreen, {
+  if (screen === "registros") tela = /*#__PURE__*/React.createElement(RegistrosScreen, {
     user: user,
     onBack: () => setScreen(backAlvo),
     onView: handleView
   });
-  if (screen === "registros-periodo") return /*#__PURE__*/React.createElement(RegistrosScreen, {
+  if (screen === "registros-periodo") tela = /*#__PURE__*/React.createElement(RegistrosScreen, {
     user: user,
     onBack: () => setScreen(backAlvo),
     onView: handleView,
     periodo: periodoSelecionado,
     modoSimples: true
   });
-  if (screen === "registros-dash") return /*#__PURE__*/React.createElement(RegistrosScreen, {
+  if (screen === "registros-dash") tela = /*#__PURE__*/React.createElement(RegistrosScreen, {
     user: user,
     onBack: () => setScreen("dashboard"),
     onView: handleView,
     filtroInicial: filtroInicial
   });
-  if (screen === "view") return /*#__PURE__*/React.createElement(FormScreen, {
+  if (screen === "view") tela = /*#__PURE__*/React.createElement(FormScreen, {
     user: user,
     onBack: voltarView,
     onSaved: voltarView,
     editData: viewData
   });
-  if (screen === "gestor" && user.role === 'gestor') return /*#__PURE__*/React.createElement(GestorScreen, {
+  if (screen === "gestor" && user.role === 'gestor') tela = /*#__PURE__*/React.createElement(GestorScreen, {
     user: user,
     onBack: () => setScreen(backAlvo)
   });
-  if (screen === "apr" && user.role === 'gestor') return /*#__PURE__*/React.createElement(AprScreen, {
+  if (screen === "apr" && user.role === 'gestor') tela = /*#__PURE__*/React.createElement(AprScreen, {
     user: user,
     onBack: () => setScreen("home")
   });
-  if (screen === "dashboard" && user.role !== 'tecnico' && user.role !== 'engcivil') return /*#__PURE__*/React.createElement(DashboardScreen, {
+  if (screen === "dashboard" && user.role !== 'tecnico' && user.role !== 'engcivil') tela = /*#__PURE__*/React.createElement(DashboardScreen, {
     onBack: () => setScreen(backAlvo),
     onVerRegistros: handleVerRegistros
   });
-  return null;
+  if (!tela) return null;
+  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(OfflineBadge, null), tela);
 }
 ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.createElement(App, null));

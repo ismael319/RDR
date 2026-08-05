@@ -185,3 +185,42 @@ function FolderTile({
     }
   }, sub))));
 }
+function OfflineBadge() {
+  const [online, setOnline] = useState(navigator.onLine);
+  const [pend, setPend] = useState(0);
+  useEffect(() => {
+    const up = () => setOnline(navigator.onLine);
+    const cont = async () => {
+      try {
+        setPend(await fsdb.pendentesLocal());
+      } catch (e) {}
+    };
+    window.addEventListener('online', up);
+    window.addEventListener('offline', up);
+    cont();
+    const iv = setInterval(cont, 5000);
+    return () => {
+      window.removeEventListener('online', up);
+      window.removeEventListener('offline', up);
+      clearInterval(iv);
+    };
+  }, []);
+  if (online && pend === 0) return null;
+  const msg = !online ? 'OFFLINE — salvando localmente. Sincroniza ao reconectar.' : (pend + ' registro(s) aguardando sincronização.');
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      bottom: 0,
+      left: 0,
+      right: 0,
+      zIndex: 1000,
+      background: online ? "rgba(39,174,96,0.92)" : "rgba(192,57,43,0.92)",
+      color: "#ffffff",
+      textAlign: "center",
+      padding: "8px 12px",
+      fontFamily: "'Oswald',sans-serif",
+      fontSize: 11,
+      letterSpacing: 1
+    }
+  }, msg);
+}

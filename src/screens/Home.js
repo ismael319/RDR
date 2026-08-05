@@ -30,7 +30,7 @@ function HomeScreen({
         mes: dados.filter(r => r.dataOcorrido?.slice(0, 7) === mesKey).length,
         total: dados.length
       });
-    });
+    }, ROLES_SOMENTE_PROPRIOS.includes(user.role) ? user.id : null);
     return () => unsubscribe();
   }, []);
   return /*#__PURE__*/React.createElement("div", {
