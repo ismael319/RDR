@@ -76,6 +76,7 @@ function HomeScreen({
       letterSpacing: 1
     }
   }, /*#__PURE__*/React.createElement(LogoutIcon, null), "SAIR")), /*#__PURE__*/React.createElement("div", {
+    className: "shell",
     style: {
       padding: "20px 18px"
     }
@@ -171,10 +172,8 @@ function HomeScreen({
     color: "#ffffff",
     onClick: onApr
   })) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "g3",
     style: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr 1fr",
-      gap: 10,
       marginBottom: 20
     }
   }, [["Hoje", stats.hoje, "#f5c518", () => onRegistros("hoje"), /*#__PURE__*/React.createElement(ClockIcon, null)], ["Mês", stats.mes, "#c0392b", () => onRegistros("mes"), /*#__PURE__*/React.createElement(CalendarIcon, null)], ["Total", stats.total, "#ffffff", () => onVerTodos?.(), /*#__PURE__*/React.createElement(DocumentIcon, {
@@ -289,9 +288,8 @@ function HomeScreen({
       paddingLeft: 2
     }
   }, ROLES_SOMENTE_PROPRIOS.includes(user.role) ? "Meus Registros" : "Todos os Registros"), /*#__PURE__*/React.createElement("div", {
+    className: "g3",
     style: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr 1fr",
       gap: 8
     }
   }, [["Hoje", "hoje"], ["Semana", "semana"], ["Mês", "mes"]].map(([label, periodo]) => /*#__PURE__*/React.createElement("button", {

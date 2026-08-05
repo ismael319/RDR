@@ -103,6 +103,7 @@ function DashboardScreen({
   const [filtroTecnico, setFiltroTecnico] = useState('todos');
   const [filtroCategoria, setFiltroCategoria] = useState('todas');
   const [filtroStatus, setFiltroStatus] = useState('todos');
+  const [foco, setFoco] = useState(null);
   const catRef = useRef(null);
   const tecRef = useRef(null);
   const mesRef = useRef(null);
@@ -166,8 +167,14 @@ function DashboardScreen({
     if (filtroCategoria !== 'todas' && (!r.categorias || !r.categorias.includes(filtroCategoria))) return false;
     if (filtroStatus === 'SIM' && r.concluido !== 'SIM') return false;
     if (filtroStatus === 'NÃO' && r.concluido !== 'NÃO') return false;
+    if (foco) {
+      if (foco.tipo === 'categoria' && !(r.categorias || []).includes(foco.valor)) return false;
+      if (foco.tipo === 'tec' && r.autorId !== foco.valor) return false;
+      if (foco.tipo === 'local' && (r.local || '').trim() !== foco.valor) return false;
+      if (foco.tipo === 'mes' && (!r.dataOcorrido || r.dataOcorrido.slice(0, 7) !== foco.valor)) return false;
+    }
     return true;
-  }), [registros, lim.inicio, lim.fim, filtroTecnico, filtroCategoria, filtroStatus]);
+  }), [registros, lim.inicio, lim.fim, filtroTecnico, filtroCategoria, filtroStatus, foco]);
   const desvios = useMemo(() => visiveis.filter(r => !(r.categorias || []).includes('Reconhecimento')), [visiveis]);
   const reconhecimentos = useMemo(() => visiveis.filter(r => (r.categorias || []).includes('Reconhecimento')), [visiveis]);
   const stats = useMemo(() => {
@@ -175,18 +182,19 @@ function DashboardScreen({
     hoje.setHours(0, 0, 0, 0);
     const total = desvios.length;
     const concluidos = desvios.filter(r => r.concluido === "SIM").length;
-    const pendentes = desvios.filter(r => r.concluido !== "SIM").length;
-    const atrasados = pendentes.filter(r => {
+    const pendentesArr = desvios.filter(r => r.concluido !== "SIM");
+    const pendentes = pendentesArr.length;
+    const atrasados = pendentesArr.filter(r => {
       const occ = r.dataOcorrido ? new Date(r.dataOcorrido + 'T12:00:00') : null;
       const dias = occ ? Math.max(0, Math.floor((hoje - occ) / 86400000)) : 0;
       if (dias > 7) return true;
       if (r.prazo && new Date(r.prazo + 'T23:59:59') < hoje) return true;
       return false;
     }).length;
-    const diasEmAberto = pendentes.length ? Math.round(pendentes.reduce((acc, r) => {
+    const diasEmAberto = pendentesArr.length ? Math.round(pendentesArr.reduce((acc, r) => {
       const occ = r.dataOcorrido ? new Date(r.dataOcorrido + 'T12:00:00') : hoje;
       return acc + Math.max(0, Math.floor((hoje - occ) / 86400000));
-    }, 0) / pendentes.length) : 0;
+    }, 0) / pendentesArr.length) : 0;
     const tx = total > 0 ? Math.round(concluidos / total * 100) : 0;
     const categorias = {};
     desvios.forEach(r => (r.categorias || []).forEach(c => {
@@ -233,19 +241,30 @@ function DashboardScreen({
   const deltaConcluidos = prevStats ? prevStats.concluidos > 0 ? Math.round((stats.concluidos - prevStats.concluidos) / prevStats.concluidos * 100) : null : null;
   const deltaPendentes = prevStats ? prevStats.pendentes > 0 ? Math.round((stats.pendentes - prevStats.pendentes) / prevStats.pendentes * 100) : null : null;
   const filtrosAtivos = [filtroTecnico !== 'todos', filtroCategoria !== 'todas', filtroStatus !== 'todos'].filter(Boolean).length;
+  const NOMES_MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
   function rotuloPeriodo() {
+    const hoje = new Date();
     switch (periodo) {
       case 'mes':
-        return 'Este mês';
-      case 'trimestre':
-        return 'Este trimestre';
+        return `${NOMES_MESES[hoje.getMonth()]}/${hoje.getFullYear().toString().slice(2)}`;
+      case 'trimestre': {
+        const t = Math.floor(hoje.getMonth() / 3) + 1;
+        return `${t}º tri ${hoje.getFullYear()}`;
+      }
       case 'ano':
-        return 'Este ano';
+        return String(hoje.getFullYear());
       case 'custom':
         return customInicio && customFim ? `${customInicio.split('-').reverse().join('/')} a ${customFim.split('-').reverse().join('/')}` : 'Período custom';
       default:
         return 'Todo o período';
     }
+  }
+  function resumoAtivo() {
+    const partes = [rotuloPeriodo()];
+    if (filtroTecnico !== 'todos') partes.push(`TST: ${tecnicos.find(t => t.id === filtroTecnico)?.label || filtroTecnico}`);
+    if (filtroCategoria !== 'todas') partes.push(filtroCategoria);
+    if (filtroStatus !== 'todos') partes.push(filtroStatus === 'SIM' ? 'Concluídos' : 'Pendentes');
+    return partes.join(' · ');
   }
   function getTecOrd(lista) {
     const t = {};
@@ -332,6 +351,14 @@ function DashboardScreen({
     id: 'NÃO',
     label: 'Pendentes'
   }];
+  function focoExtra() {
+    if (!foco) return {};
+    if (foco.tipo === 'categoria') return { categoria: foco.valor };
+    if (foco.tipo === 'tec') return { tecnico: foco.valor };
+    if (foco.tipo === 'local') return { busca: foco.valor };
+    if (foco.tipo === 'mes') return { data: 'mes', mesExato: foco.valor };
+    return {};
+  }
   function navComFiltros(extra) {
     const base = {};
     if (periodo === 'mes') base.data = 'mes';
@@ -341,12 +368,17 @@ function DashboardScreen({
     }
     if (filtroTecnico !== 'todos') base.tecnico = filtroTecnico;
     if (filtroCategoria !== 'todas') base.categoria = filtroCategoria;
-    return { ...base, ...extra };
+    return { ...base, ...focoExtra(), ...extra };
   }
   function limparFiltros() {
     setFiltroTecnico('todos');
     setFiltroCategoria('todas');
     setFiltroStatus('todos');
+    setFoco(null);
+  }
+  function mudarPeriodo(v) {
+    setPeriodo(v);
+    setFoco(null);
   }
   useEffect(() => {
     if (!chartReady || chartErr || loading) return;
@@ -397,9 +429,13 @@ function DashboardScreen({
             }
           },
           onClick: (e, els) => {
-            if (els.length) onVerRegistros(navComFiltros({
-              categoria: stats.catOrd[els[0].index][0]
-            }));
+            if (!els.length) return;
+            const cat = stats.catOrd[els[0].index][0];
+            setFoco({
+              tipo: 'categoria',
+              valor: cat,
+              rotulo: cat
+            });
           }
         }
       });
@@ -437,9 +473,11 @@ function DashboardScreen({
             if (!els.length) return;
             const nome = tecOrd[els[0].index][0];
             const rec = desvios.find(r => r.autorNome === nome);
-            if (rec) onVerRegistros(navComFiltros({
-              tecnico: rec.autorId
-            }));
+            if (rec) setFoco({
+              tipo: 'tec',
+              valor: rec.autorId,
+              rotulo: nome
+            });
           }
         }
       });
@@ -472,9 +510,10 @@ function DashboardScreen({
             if (!els.length) return;
             const b = evolucao[els[0].index];
             const mesExato = b.key.length === 7 ? b.key : b.key.slice(0, 7);
-            onVerRegistros({
-              data: 'mes',
-              mesExato
+            setFoco({
+              tipo: 'mes',
+              valor: mesExato,
+              rotulo: b.label
             });
           }
         }
@@ -511,9 +550,12 @@ function DashboardScreen({
           },
           onClick: (e, els) => {
             if (!els.length) return;
-            onVerRegistros(navComFiltros({
-              busca: stats.locOrd[els[0].index][0]
-            }));
+            const loc = stats.locOrd[els[0].index][0];
+            setFoco({
+              tipo: 'local',
+              valor: loc,
+              rotulo: loc
+            });
           }
         }
       });
@@ -1073,9 +1115,9 @@ function DashboardScreen({
     }
   }
   function ctxExport() {
-    const filtrosTxt = [filtroTecnico !== 'todos' ? `TST: ${tecnicos.find(t => t.id === filtroTecnico)?.label || filtroTecnico}` : null, filtroCategoria !== 'todas' ? `Categoria: ${filtroCategoria}` : null, filtroStatus !== 'todos' ? `Status: ${filtroStatus === 'SIM' ? 'Concluídos' : 'Pendentes'}` : null].filter(Boolean).join(' · ');
+    const filtrosTxt = [foco ? foco.rotulo : null, filtroTecnico !== 'todos' ? `TST: ${tecnicos.find(t => t.id === filtroTecnico)?.label || filtroTecnico}` : null, filtroCategoria !== 'todas' ? `Categoria: ${filtroCategoria}` : null, filtroStatus !== 'todos' ? `Status: ${filtroStatus === 'SIM' ? 'Concluídos' : 'Pendentes'}` : null].filter(Boolean).join(' · ');
     return {
-      titulo: rotuloPeriodo(),
+      titulo: `${rotuloPeriodo()}${foco ? ' · ' + foco.rotulo : ''}`,
       filtros: filtrosTxt,
       reconhecimentos: stats.recs,
       atrasados: stats.atrasados,
@@ -1091,15 +1133,55 @@ function DashboardScreen({
       color: "#ffffff"
     }
   }, /*#__PURE__*/React.createElement(Header, {
-    title: "DASHBOARD",
-    subtitle: `${stats.total} desvios · ${rotuloPeriodo()}`,
-    onBack: onBack
+    title: foco ? `DASHBOARD · ${foco.rotulo.toUpperCase()}` : "DASHBOARD",
+    subtitle: `${stats.total} ${foco ? foco.tipo === 'mes' ? 'desvios no mês' : 'registros' : 'desvios'} · ${resumoAtivo()}`,
+    onBack: foco ? () => setFoco(null) : onBack,
+    right: foco ? /*#__PURE__*/React.createElement("button", {
+      className: "folder-tile-fx",
+      onClick: () => onVerRegistros(navComFiltros({})),
+      style: {
+        "--glow": "#c0392b",
+        background: "rgba(192,57,43,0.15)",
+        border: "1px solid rgba(192,57,43,0.3)",
+        color: "#c0392b",
+        borderRadius: 8,
+        padding: "7px 12px",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        gap: 5,
+        fontFamily: "'Oswald',sans-serif",
+        fontSize: 11,
+        letterSpacing: 1,
+        whiteSpace: "nowrap"
+      }
+    }, /*#__PURE__*/React.createElement(EyeIcon, null), "VER REGISTROS") : null
   }), loading ? /*#__PURE__*/React.createElement(Spinner, null) : /*#__PURE__*/React.createElement("div", {
+    className: "shell",
     style: {
-      padding: "16px",
-      maxWidth: 640,
-      margin: "0 auto"
+      padding: "16px"
     }
+  }, foco && /*#__PURE__*/React.createElement("button", {
+    className: "folder-tile-fx",
+    onClick: () => setFoco(null),
+    style: {
+      "--glow": "#3498db",
+      background: "transparent",
+      border: "1px solid rgba(52,152,219,0.4)",
+      color: "#3498db",
+      fontFamily: "'Oswald',sans-serif",
+      fontSize: 11,
+      padding: "8px 14px",
+      borderRadius: 20,
+      cursor: "pointer",
+      letterSpacing: 1,
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement(BackIcon, null), "VOLTAR AO DASHBOARD"), !foco && /*#__PURE__*/React.createElement("div", {
+    className: "dash-filters"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       marginBottom: 4
@@ -1108,12 +1190,10 @@ function DashboardScreen({
     label: "Per\xEDodo",
     opcoes: opsPeriodo,
     valor: periodo,
-    onChange: v => setPeriodo(v)
+    onChange: mudarPeriodo
   })), periodo === 'custom' && /*#__PURE__*/React.createElement("div", {
+    className: "g2",
     style: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: 10,
       marginBottom: 14
     }
   }, /*#__PURE__*/React.createElement(Field, {
@@ -1128,11 +1208,7 @@ function DashboardScreen({
     type: "date",
     value: customFim,
     onChange: e => setCustomFim(e.target.value)
-  }))), filtrosAtivos > 0 ? /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 16
-    }
-  }, /*#__PURE__*/React.createElement(FiltroChips, {
+  }))), /*#__PURE__*/React.createElement(FiltroChips, {
     label: "Por TST",
     opcoes: opsTecs,
     valor: filtroTecnico,
@@ -1147,7 +1223,7 @@ function DashboardScreen({
     opcoes: opsStatus,
     valor: filtroStatus,
     onChange: setFiltroStatus
-  }), /*#__PURE__*/React.createElement("button", {
+  }), filtrosAtivos > 0 && /*#__PURE__*/React.createElement("button", {
     onClick: limparFiltros,
     style: {
       background: "transparent",
@@ -1159,38 +1235,15 @@ function DashboardScreen({
       borderRadius: 20,
       cursor: "pointer",
       letterSpacing: 1,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 6
-    }
-  }, /*#__PURE__*/React.createElement(FilterIcon, {
-    size: 12
-  }), "LIMPAR FILTROS")) : /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 16
-    }
-  }, /*#__PURE__*/React.createElement("button", {
-    className: "folder-tile-fx",
-    onClick: () => setFiltroStatus('todos'),
-    style: {
-      "--glow": "#3498db",
-      background: "transparent",
-      border: "1px dashed rgba(52,152,219,0.4)",
-      color: "#3498db",
-      fontFamily: "'Oswald',sans-serif",
-      fontSize: 11,
-      padding: "7px 14px",
-      borderRadius: 20,
-      cursor: "pointer",
-      letterSpacing: 1,
       display: "flex",
       alignItems: "center",
-      gap: 6
+      justifyContent: "center",
+      gap: 6,
+      marginBottom: 16
     }
   }, /*#__PURE__*/React.createElement(FilterIcon, {
     size: 12
-  }), "FILTRAR")), /*#__PURE__*/React.createElement("div", {
+  }), "LIMPAR FILTROS")), /*#__PURE__*/React.createElement("div", {
     style: {
       background: "linear-gradient(135deg,rgba(245,166,35,0.12),rgba(245,166,35,0.04))",
       border: "1px solid rgba(245,166,35,0.25)",
@@ -1270,10 +1323,8 @@ function DashboardScreen({
       marginTop: 4
     }
   }, stats.pendentes, " pendente", stats.pendentes !== 1 ? "s" : "", prevStats ? ` (antes: ${prevStats.total} de ${prevStats.pendentes})` : ""))), /*#__PURE__*/React.createElement("div", {
+    className: "g4",
     style: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: 10,
       marginBottom: 16
     }
   }, /*#__PURE__*/React.createElement(StatCard, {
@@ -1316,10 +1367,8 @@ function DashboardScreen({
       concluido: "NÃO"
     }))
   })), /*#__PURE__*/React.createElement("div", {
+    className: "g2",
     style: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: 10,
       marginBottom: 16
     }
   }, /*#__PURE__*/React.createElement(StatCard, {
@@ -1373,12 +1422,13 @@ function DashboardScreen({
       marginTop: 4
     }
   }, "m\xE9dia dos pendentes do per\xEDodo"))), /*#__PURE__*/React.createElement("div", {
+    className: "dash-charts"
+  }, /*#__PURE__*/React.createElement("div", {
     style: {
       background: "#0d0d0d",
       border: "1px solid rgba(255,255,255,0.07)",
       borderRadius: 14,
-      padding: "18px",
-      marginBottom: 16
+      padding: "18px"
     }
   }, sec("Desvios por Categoria", "toque para filtrar"), stats.catOrd.length === 0 ? /*#__PURE__*/React.createElement("div", {
     style: {
@@ -1392,8 +1442,7 @@ function DashboardScreen({
       background: "#0d0d0d",
       border: "1px solid rgba(255,255,255,0.07)",
       borderRadius: 14,
-      padding: "18px",
-      marginBottom: 16
+      padding: "18px"
     }
   }, sec("RDR por TST", "toque para filtrar"), tecOrd.length === 0 ? /*#__PURE__*/React.createElement("div", {
     style: {
@@ -1407,8 +1456,7 @@ function DashboardScreen({
       background: "#0d0d0d",
       border: "1px solid rgba(255,255,255,0.07)",
       borderRadius: 14,
-      padding: "18px",
-      marginBottom: 16
+      padding: "18px"
     }
   }, sec("Evolu\xE7\xE3o", "desvios no per\xEDodo"), evolucao.length === 0 ? /*#__PURE__*/React.createElement("div", {
     style: {
@@ -1422,8 +1470,7 @@ function DashboardScreen({
       background: "#0d0d0d",
       border: "1px solid rgba(255,255,255,0.07)",
       borderRadius: 14,
-      padding: "18px",
-      marginBottom: 16
+      padding: "18px"
     }
   }, sec("Locais com mais desvios", "toque para abrir os registros"), stats.locOrd.length === 0 ? /*#__PURE__*/React.createElement("div", {
     style: {
@@ -1432,7 +1479,7 @@ function DashboardScreen({
       fontSize: 12,
       padding: 10
     }
-  }, "Sem dados no per\xEDodo") : chartErr ? /*#__PURE__*/React.createElement("div", null, barrasCSS(stats.locOrd, stats.maxLoc, CORES)) : /*#__PURE__*/React.createElement("div", null, canvasSec(locRef, 300))), /*#__PURE__*/React.createElement("div", {
+  }, "Sem dados no per\xEDodo") : chartErr ? /*#__PURE__*/React.createElement("div", null, barrasCSS(stats.locOrd, stats.maxLoc, CORES)) : /*#__PURE__*/React.createElement("div", null, canvasSec(locRef, 300)))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 10

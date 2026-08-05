@@ -364,10 +364,9 @@ function RegistrosScreen({
   }, /*#__PURE__*/React.createElement(FilterIcon, {
     size: 12
   }), "LIMPAR FILTROS")), loading ? /*#__PURE__*/React.createElement(Spinner, null) : /*#__PURE__*/React.createElement("div", {
+    className: "shell",
     style: {
-      padding: 16,
-      maxWidth: 600,
-      margin: "0 auto"
+      padding: 16
     }
   }, anosDisponiveis.map(ano => {
     const expandido = anoExpandido === ano;
@@ -476,6 +475,7 @@ function RegistrosScreen({
       }, totalMes));
     }))));
   }), (mesAtivoFiltro || busca.trim()) && /*#__PURE__*/React.createElement("div", {
+    className: "rec-list",
     style: {
       marginTop: 4
     }
@@ -496,10 +496,7 @@ function RegistrosScreen({
       fontSize: 13
     }
   }, busca.trim() ? "NENHUM REGISTRO ENCONTRADO" : "NENHUM REGISTRO NESTE M\xCAS")), days.map(day => /*#__PURE__*/React.createElement("div", {
-    key: day,
-    style: {
-      marginBottom: 12
-    }
+    key: day
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => setExpanded(e => ({
       ...e,

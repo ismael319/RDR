@@ -610,6 +610,7 @@ function AprScreen({
     subtitle: "An\xE1lise Preliminar de Risco",
     onBack: voltar
   }), /*#__PURE__*/React.createElement("div", {
+    className: "shell",
     style: {
       padding: 16
     }

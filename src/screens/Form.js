@@ -165,6 +165,7 @@ function FormScreen({
       size: 13
     }), preview ? "EDITAR" : "PRÉVIA")
   }), !preview ? /*#__PURE__*/React.createElement("div", {
+    className: "shell",
     style: {
       padding: 16
     }

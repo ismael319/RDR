@@ -141,6 +141,7 @@ function GestorScreen({
       }
     }, /*#__PURE__*/React.createElement(PlusIcon, null), "NOVO")
   }), /*#__PURE__*/React.createElement("div", {
+    className: "shell",
     style: {
       padding: 16
     }

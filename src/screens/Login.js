@@ -37,9 +37,9 @@ function LoginScreen({
       padding: 24
     }
   }, /*#__PURE__*/React.createElement("div", {
+    className: "login-card",
     style: {
-      width: "100%",
-      maxWidth: 360
+      width: "100%"
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
