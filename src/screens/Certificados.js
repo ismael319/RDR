@@ -6,7 +6,9 @@ function CertificadosScreen({
   const [modelo, setModelo] = useState(null);
   const [erroModelo, setErroModelo] = useState('');
   const [carregandoModelo, setCarregandoModelo] = useState(false);
-  const [textoLista, setTextoLista] = useState('');
+  const [textoNomes, setTextoNomes] = useState('');
+  const [textoCpfs, setTextoCpfs] = useState('');
+  const [erroLista, setErroLista] = useState('');
   const [pessoas, setPessoas] = useState([]);
   const [mapeamento, setMapeamento] = useState({});
   const [gerando, setGerando] = useState(false);
@@ -36,7 +38,13 @@ function CertificadosScreen({
     }
   }
   function handleParseTexto() {
-    setPessoas(parsearListaTexto(textoLista));
+    const res = parsearListaNomeCpf(textoNomes, textoCpfs);
+    if (!res.ok) {
+      setErroLista('Nomes (' + res.nomes + ') e CPFs (' + res.cpfs + ') em quantidades diferentes. Ajuste para gerar.');
+      return;
+    }
+    setErroLista('');
+    setPessoas(res.pessoas);
   }
   async function handleDados(e) {
     const file = e.target.files && e.target.files[0];
@@ -190,12 +198,12 @@ function CertificadosScreen({
   }, /*#__PURE__*/React.createElement(AlertCircleIcon, null), erroModelo)), /*#__PURE__*/React.createElement("div", {
     style: card
   }, /*#__PURE__*/React.createElement(SectionLabel, null, "2. Pessoas"), /*#__PURE__*/React.createElement(Field, {
-    label: "Colar lista (nome / CPF / função)"
+    label: "Nomes (um por linha)"
   }, /*#__PURE__*/React.createElement("textarea", {
-    value: textoLista,
-    onChange: e => setTextoLista(e.target.value),
-    rows: 6,
-    placeholder: "FULANO DE TAL\t000.000.000-00\tPEDREIRO\n...",
+    value: textoNomes,
+    onChange: e => setTextoNomes(e.target.value),
+    rows: 5,
+    placeholder: "FULANO DE TAL\nBELTRANO DA SILVA\n...",
     style: {
       width: "100%",
       boxSizing: "border-box",
@@ -208,7 +216,35 @@ function CertificadosScreen({
       fontFamily: "inherit",
       resize: "vertical"
     }
-  }), /*#__PURE__*/React.createElement("button", {
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "CPFs (um por linha, na mesma ordem dos nomes)"
+  }, /*#__PURE__*/React.createElement("textarea", {
+    value: textoCpfs,
+    onChange: e => setTextoCpfs(e.target.value),
+    rows: 5,
+    placeholder: "000.000.000-00\n111.222.333-44\n...",
+    style: {
+      width: "100%",
+      boxSizing: "border-box",
+      background: "#0a0a0a",
+      border: "1px solid rgba(255,255,255,0.15)",
+      borderRadius: 10,
+      color: "#ffffff",
+      padding: 10,
+      fontSize: 12,
+      fontFamily: "inherit",
+      resize: "vertical"
+    }
+  })), erroLista && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 10,
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      color: "#e74c3c",
+      fontSize: 12
+    }
+  }, /*#__PURE__*/React.createElement(AlertCircleIcon, null), erroLista), /*#__PURE__*/React.createElement("button", {
     onClick: handleParseTexto,
     style: Object.assign({}, btnBase, {
       width: "100%",
@@ -217,7 +253,7 @@ function CertificadosScreen({
       border: "1px solid rgba(245,197,24,0.4)",
       color: "#f5c518"
     })
-  }, /*#__PURE__*/React.createElement(UsersIcon, null), "ADICIONAR DA LISTA")), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(UsersIcon, null), "ADICIONAR DA LISTA"), /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 12
     }

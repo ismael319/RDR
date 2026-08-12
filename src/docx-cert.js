@@ -117,6 +117,19 @@ function parsearListaTexto(texto) {
   return pessoas;
 }
 
+function parsearListaNomeCpf(textoNomes, textoCpfs) {
+  var nomes = String(textoNomes || '').split(/\r?\n/).map(function(l) { return l.trim(); }).filter(Boolean);
+  var cpfs = String(textoCpfs || '').split(/\r?\n/).map(function(l) { return l.trim(); }).filter(Boolean);
+  if (nomes.length && /^(nomes?|names?)$/i.test(nomes[0])) nomes.shift();
+  if (cpfs.length && /^cpfs?$/i.test(cpfs[0])) cpfs.shift();
+  if (nomes.length !== cpfs.length) return { ok: false, nomes: nomes.length, cpfs: cpfs.length, pessoas: [] };
+  var pessoas = [];
+  for (var i = 0; i < nomes.length; i++) {
+    pessoas.push({ nome: nomes[i], cpf: cpfs[i], funcao: '' });
+  }
+  return { ok: true, nomes: nomes.length, cpfs: cpfs.length, pessoas: pessoas };
+}
+
 function lerCsvCert(texto) {
   var linhas = String(texto || '').split(/\r?\n/).map(function(l) { return l.trim(); }).filter(Boolean);
   var pessoas = [];
