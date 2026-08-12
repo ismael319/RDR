@@ -209,7 +209,7 @@ var MODELOS_BUCKET = 'modelos';
 async function listarModelos() {
   var res = await sb.storage.from(MODELOS_BUCKET).list('', { sortBy: { column: 'name', order: 'asc' } });
   if (res.error) throw res.error;
-  return (res.data || []).filter(function(f) { return f.name && f.metadata && f.metadata.size > 0; }).map(function(f) {
+  return (res.data || []).filter(function(f) { return f.name && /\.docx$/i.test(f.name) && f.metadata && f.metadata.size > 0; }).map(function(f) {
     return {
       path: f.name,
       nome: String(f.name).replace(/\.docx$/i, ''),
